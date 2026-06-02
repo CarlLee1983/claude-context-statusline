@@ -1,5 +1,7 @@
 # claude-context-statusline
 
+**繁體中文** · [English](README.en.md)
+
 在 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 的狀態列常駐顯示目前 session 的 context window 佔用程度，一眼掌握還剩多少空間。
 
 ```
@@ -32,6 +34,9 @@ cd claude-context-statusline
 
 完成後**重新開啟一個 Claude Code session** 即可看到狀態列。
 
+> 若你的 Claude Code 設定不在 `~/.claude`，可用 `CLAUDE_CONFIG_DIR` 指定：
+> `CLAUDE_CONFIG_DIR=/path/to/config ./install.sh`
+
 ## 移除
 
 ```bash
@@ -46,6 +51,8 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 2. 已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
 3. 百分比 = 已用 ÷ 模型上限
 
+為效率考量，大型 transcript 只讀尾端 ~2MB；若尾端找不到（例如近期訊息全為 sidechain）才退回整檔掃描。
+
 ## 自訂
 
 編輯 `~/.claude/hooks/ctx-statusline.py` 頂部常數：
@@ -55,9 +62,26 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 | `BAR_WIDTH` | `10` | 進度條寬度（字元數） |
 | `WARN_PCT` | `70` | 達此 % 轉黃 |
 | `CRIT_PCT` | `85` | 達此 % 轉紅 |
+| `TAIL_BYTES` | `2_000_000` | 大型 transcript 只讀尾端的位元組數 |
 
 改完重開 session 生效。
 
+## 開發
+
+純標準庫，無需安裝相依。執行測試：
+
+```bash
+python3 -m unittest discover -s tests -v
+```
+
+手動驗證輸出（會帶 ANSI 色碼）：
+
+```bash
+echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
+```
+
+歡迎貢獻，請見 [CONTRIBUTING.md](CONTRIBUTING.md)；版本變更記於 [CHANGELOG.md](CHANGELOG.md)。
+
 ## 授權
 
-MIT
+[MIT](LICENSE)

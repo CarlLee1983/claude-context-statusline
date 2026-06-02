@@ -4,24 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 專案概述
 
-Claude Code 狀態列工具：在狀態列常駐顯示目前 session 的 context window 佔用程度。整個工具是單一檔案 `ctx-statusline.py`，純標準庫、零相依，搭配 `install.sh` / `uninstall.sh` 兩個安裝腳本。
+Claude Code 狀態列工具：在狀態列常駐顯示目前 session 的 context window 佔用程度。核心是單一檔案 `ctx-statusline.py`，純標準庫、零相依，搭配 `install.sh` / `uninstall.sh` 兩個安裝腳本與 `tests/` 標準庫測試。
 
 ## 開發指令
 
-無 build / lint / test 框架。以實際輸入手動驗證：
-
 ```bash
+# 跑測試（純標準庫 unittest，無需安裝相依）
+python3 -m unittest discover -s tests -v
+
 # 用模擬的 statusline JSON 餵入腳本，觀察輸出（會帶 ANSI 色碼）
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
 
+# 檢查 shell 腳本
+bash -n install.sh uninstall.sh && shellcheck install.sh uninstall.sh
+
 # 安裝到 ~/.claude/（複製腳本 + 併入 settings.json，會自動備份）
-./install.sh
+# 可用 CLAUDE_CONFIG_DIR 指定其他設定目錄（測試安裝時很有用）
+CLAUDE_CONFIG_DIR=$(mktemp -d) ./install.sh
 
 # 移除
 ./uninstall.sh
 ```
 
-驗證改動後，需**重新開啟一個 Claude Code session** 才會載入更新後的狀態列。
+驗證改動後，需**重新開啟一個 Claude Code session** 才會載入更新後的狀態列。`tests/` 因腳本名含連字號，用 `importlib` 依路徑載入模組（見測試檔開頭）。
 
 ## 架構重點
 
@@ -29,6 +34,7 @@ echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_pa
 
 **核心邏輯（`ctx-statusline.py`）**：
 - `used_tokens()` 從 transcript（JSONL）**尾端往前**掃，找第一筆「非 sidechain 且含 `message.usage`」的記錄。已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`。
+- 效率：大型 transcript 只讀尾端 `TAIL_BYTES`（預設 2MB）；尾端找不到且檔案曾被截斷時，才整檔回掃（涵蓋「近期全是 sidechain」的邊界）。
 - 過濾 `isSidechain` 是刻意設計：只反映主 session 用量，與 Claude Code 內建 `/context` 的數字對齊。subagent 訊息不計入。
 - `context_limit()` 以 `model.id` 是否含 `1m` 判斷上限（1,000,000 vs 200,000）。
 
@@ -38,5 +44,7 @@ echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_pa
 
 ## 慣例
 
-- 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。
-- 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)。
+- 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。測試亦只用標準庫 `unittest`。
+- 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)、`TAIL_BYTES`(尾端讀取量)。
+- 文件採中英雙語：`README.md`（繁中為主）與 `README.en.md`（英文）需同步更新；變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
+- 安裝/移除腳本支援 `CLAUDE_CONFIG_DIR` 覆寫設定目錄（預設 `~/.claude`）。
