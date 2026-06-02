@@ -7,7 +7,7 @@ struct AIUsageMonitorApp: App {
     @StateObject private var model = UsageMenuModel(provider: DemoUsageSnapshotProvider())
 
     init() {
-        NSApp.setActivationPolicy(.accessory)
+        NSApplication.shared.setActivationPolicy(.accessory)
     }
 
     var body: some Scene {
