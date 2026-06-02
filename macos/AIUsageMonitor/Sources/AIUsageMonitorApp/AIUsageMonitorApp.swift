@@ -6,20 +6,16 @@ import Foundation
 struct AIUsageMonitorMain {
     static func main() {
         let app = NSApplication.shared
-        let delegate = AIUsageMonitorAppDelegate()
-        app.delegate = delegate
         app.setActivationPolicy(.accessory)
+
+        Runtime.controller = StatusMenuController(provider: DemoUsageSnapshotProvider())
+        Runtime.controller?.start()
+
         app.run()
-        _ = delegate
     }
 }
 
 @MainActor
-final class AIUsageMonitorAppDelegate: NSObject, NSApplicationDelegate {
-    private var statusMenuController: StatusMenuController?
-
-    func applicationDidFinishLaunching(_ notification: Notification) {
-        statusMenuController = StatusMenuController(provider: DemoUsageSnapshotProvider())
-        statusMenuController?.start()
-    }
+private enum Runtime {
+    static var controller: StatusMenuController?
 }

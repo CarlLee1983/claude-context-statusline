@@ -4,8 +4,17 @@ Local-only native macOS menu bar app MVP for AI CLI usage status.
 
 ## Run
 
+For reliable menu bar visibility, build and open the local `.app` bundle:
+
 ```bash
 cd macos/AIUsageMonitor
+./Scripts/build-app.sh
+open .build/AIUsageMonitor.app
+```
+
+For debugging the executable directly:
+
+```bash
 swift run AIUsageMonitorApp
 ```
 

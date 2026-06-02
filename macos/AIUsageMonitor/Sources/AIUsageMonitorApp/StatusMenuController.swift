@@ -12,7 +12,7 @@ final class StatusMenuController {
     init(provider: UsageSnapshotProviding) {
         self.provider = provider
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        self.statusItem.button?.title = "AI …"
+        self.statusItem.button?.title = "AI"
         self.statusItem.button?.toolTip = "AI Usage Monitor"
     }
 
@@ -24,7 +24,7 @@ final class StatusMenuController {
     private func refresh() async {
         guard !isRefreshing else { return }
         isRefreshing = true
-        setStatusTitle("AI …")
+        setStatusTitle("AI")
         snapshots = await provider.snapshots()
         isRefreshing = false
         setStatusTitle(menuTitle)
@@ -33,7 +33,7 @@ final class StatusMenuController {
 
     private var menuTitle: String {
         guard !snapshots.isEmpty else { return "AI —" }
-        return "AI " + snapshots.map { snapshot in
+        return snapshots.map { snapshot in
             guard let first = snapshot.windows.first else { return "\(snapshot.shortName) —" }
             return "\(snapshot.shortName) \(Int(first.percent.rounded()))%"
         }.joined(separator: " ")
