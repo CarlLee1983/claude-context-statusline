@@ -1,22 +1,25 @@
 import AIUsageMonitorCore
 import AppKit
-import SwiftUI
+import Foundation
 
 @main
-struct AIUsageMonitorApp: App {
-    @StateObject private var model = UsageMenuModel(provider: DemoUsageSnapshotProvider())
-
-    init() {
-        NSApplication.shared.setActivationPolicy(.accessory)
+struct AIUsageMonitorMain {
+    static func main() {
+        let app = NSApplication.shared
+        let delegate = AIUsageMonitorAppDelegate()
+        app.delegate = delegate
+        app.setActivationPolicy(.accessory)
+        app.run()
+        _ = delegate
     }
+}
 
-    var body: some Scene {
-        MenuBarExtra {
-            UsageMenuView(model: model)
-                .task { await model.refresh() }
-        } label: {
-            Text(model.menuTitle)
-        }
-        .menuBarExtraStyle(.window)
+@MainActor
+final class AIUsageMonitorAppDelegate: NSObject, NSApplicationDelegate {
+    private var statusMenuController: StatusMenuController?
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        statusMenuController = StatusMenuController(provider: DemoUsageSnapshotProvider())
+        statusMenuController?.start()
     }
 }
