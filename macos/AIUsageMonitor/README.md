@@ -18,10 +18,11 @@ For debugging the executable directly:
 swift run AIUsageMonitorApp
 ```
 
-This first MVP uses demo provider data while the parser/provider foundation is built and tested. It runs as an accessory menu bar app through AppKit `NSStatusItem` and does not require signing or notarization for local development.
+This MVP fetches live Claude and Codex usage natively (no Python runtime dependency). It runs as an accessory menu bar app through AppKit `NSStatusItem` and does not require signing or notarization for local development.
 
 ## Current coverage
 
-- Antigravity `agy /usage` text parser for available model quota.
-- Codex rate-limit JSON parser for 5-hour and 7-day usage windows.
-- Native AppKit menu bar UI scaffold with refresh and quit actions.
+- Live Claude Code usage (Keychain OAuth token → Anthropic usage endpoint), 5h / 7d windows.
+- Live Codex usage (`codex app-server` JSON-RPC rate limits), 5h / 7d windows.
+- Native AppKit menu bar UI with 5-minute auto-refresh plus a manual Refresh action.
+- Antigravity is temporarily removed and will return in a later round.

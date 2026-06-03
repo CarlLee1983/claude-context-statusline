@@ -8,6 +8,7 @@ final class StatusMenuController {
     private let statusItem: NSStatusItem
     private var snapshots: [ProviderSnapshot] = []
     private var isRefreshing = false
+    private var refreshTask: Task<Void, Never>?
 
     init(provider: UsageSnapshotProviding) {
         self.provider = provider
@@ -18,7 +19,12 @@ final class StatusMenuController {
 
     func start() {
         rebuildMenu()
-        Task { await refresh() }
+        refreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                await self?.refresh()
+                try? await Task.sleep(for: .seconds(300))
+            }
+        }
     }
 
     private func refresh() async {
@@ -105,6 +111,7 @@ final class StatusMenuController {
     }
 
     @objc private func quitMenuItemSelected() {
+        refreshTask?.cancel()
         NSApplication.shared.terminate(nil)
     }
 }
