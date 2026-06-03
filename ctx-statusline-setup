@@ -1,0 +1,31 @@
+#!/usr/bin/env python3
+"""ctx-statusline-setup — 把 ctx-statusline 併入/移出 Claude Code 的 settings.json。
+
+純標準庫、零相依。預設 command 指向與本腳本同目錄的 ctx-statusline（Homebrew 情境）；
+install.sh 會以 --command 明確指定來源 checkout 的路徑。honors CLAUDE_CONFIG_DIR。
+
+Merge or remove the statusLine entry in Claude Code's settings.json.
+"""
+import json
+import os
+import shutil
+import sys
+import time
+
+STATUS_LINE_KEY = "statusLine"
+
+
+class InvalidSettings(Exception):
+    """settings.json 不是合法 JSON 物件 / not a valid JSON object."""
+
+
+def apply_status_line(data, command):
+    """回傳設好 statusLine 的新 dict（不可變：不改原輸入）。"""
+    return {**data, STATUS_LINE_KEY: {"type": "command", "command": command}}
+
+
+def remove_status_line(data):
+    """回傳 (新 dict, 是否移除)。"""
+    if STATUS_LINE_KEY not in data:
+        return data, False
+    return {k: v for k, v in data.items() if k != STATUS_LINE_KEY}, True
