@@ -16,6 +16,7 @@
 
 import glob
 import json
+import math
 import os
 import pty
 import re
@@ -30,8 +31,9 @@ import struct
 from datetime import datetime, timezone, timedelta
 
 # ---- 可調參數 ----
-WARN_PCT = 70.0   # 轉黃
-CRIT_PCT = 90.0   # 轉紅
+# 狀態分級以「剩餘」quota 計算,與原生 menu app 的 RemainingQuotaPresenter 對齊。
+WARN_REMAINING = 40   # 剩餘 ≤ 此值轉黃
+CRIT_REMAINING = 10   # 剩餘 ≤ 此值轉紅
 BAR_WIDTH = 10    # 下拉選單進度條格數
 FETCH_TTL = 300   # 每個來源最短重抓間隔(秒);中間用快取,避開端點自身限流(429)
 CACHE_DIR = os.path.expanduser("~/.cache/ai-usage")
@@ -46,8 +48,208 @@ ANTIGRAVITY_ACCOUNTS_PATH = os.path.expanduser(
 
 _LOCAL_TZ = timezone(timedelta(hours=TZ_OFFSET_HOURS))
 
+CLAUDE_PATH = "m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z"
+
+OPENAI_PATH = (
+    "M22.2819 9.8211a5.9847 5.9847 0 0 0-.5157-4.9108 6.0462 6.0462 0 0 0-6.5098-2.9A6.0651 6.0651 0 0 0 4.9807 4.1818a5.9847 5.9847 0 0 0-3.9977 2.9 6.0462 6.0462 0 0 0 .7427 7.0966 5.98 5.98 0 0 0 .511 4.9107 6.051 6.051 0 0 0 6.5146 2.9001A5.9847 5.9847 0 0 0 13.2599 24a6.0557 6.0557 0 0 0 5.7718-4.2058 5.9894 5.9894 0 0 0 3.9977-2.9001 6.0557 6.0557 0 0 0-.7475-7.0729zm-9.022 12.6081a4.4755 4.4755 0 0 1-2.8764-1.0408l.1419-.0804 4.7783-2.7582a.7948.7948 0 0 0 .3927-.6813v-6.7369l2.02 1.1686a.071.071 0 0 1 .038.052v5.5826a4.504 4.504 0 0 1-4.4945 4.4944zm-9.6607-4.1254a4.4708 4.4708 0 0 1-.5346-3.0137l.142.0852 4.783 2.7582a.7712.7712 0 0 0 .7806 0l5.8428-3.3685v2.3324a.0804.0804 0 0 1-.0332.0615L9.74 19.9502a4.4992 4.4992 0 0 1-6.1408-1.6464zM2.3408 7.8956a4.485 4.485 0 0 1 2.3655-1.9728V11.6a.7664.7664 0 0 0 .3879.6765l5.8144 3.3543-2.0201 1.1685a.0757.0757 0 0 1-.071 0l-4.8303-2.7865A4.504 4.504 0 0 1 2.3408 7.872zm16.5963 3.8558L13.1038 8.364 15.1192 7.2a.0757.0757 0 0 1 .071 0l4.8303 2.7913a4.4944 4.4944 0 0 1-.6765 8.1042v-5.6772a.79.79 0 0 0-.407-.667zm2.0107-3.0231l-.142-.0852-4.7735-2.7818a.7759.7759 0 0 0-.7854 0L9.409 9.2297V6.8974a.0662.0662 0 0 1 .0284-.0615l4.8303-2.7866a4.4992 4.4992 0 0 1 6.6802 4.66zM8.3065 12.863l-2.02-1.1638a.0804.0804 0 0 1-.038-.0567V6.0742a4.4992 4.4992 0 0 1 7.3757-3.4537l-.142.0805L8.704 5.459a.7948.7948 0 0 0-.3927.6813zm1.0976-2.3654l2.602-1.4998 2.6069 1.4998v2.9994l-2.5974 1.4997-2.6067-1.4997Z"
+)
+
+ANTIGRAVITY_LOGO_B64 = "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"
+
+
+
 
 # ---------- 共用工具 ----------
+
+def parse_svg_path(path_str, view_w=24.0, view_h=24.0, target_size=14.0):
+    tokens = re.findall(r'[a-zA-Z]|-?\d*\.\d+|-?\d+', path_str)
+    subpaths = []
+    current_subpath = []
+    cx, cy = 0.0, 0.0
+    sx, sy = 0.0, 0.0
+    scale_factor = target_size / view_w
+    
+    i = 0
+    cmd = None
+    while i < len(tokens):
+        token = tokens[i]
+        if token.isalpha():
+            cmd = token
+            i += 1
+            
+        if cmd in ('m', 'M'):
+            if current_subpath:
+                subpaths.append(current_subpath)
+                current_subpath = []
+            dx = float(tokens[i])
+            dy = float(tokens[i+1])
+            if cmd == 'm':
+                cx += dx
+                cy += dy
+            else:
+                cx = dx
+                cy = dy
+            sx, sy = cx, cy
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 2
+            cmd = 'l' if cmd == 'm' else 'L'
+        elif cmd == 'l':
+            dx = float(tokens[i])
+            dy = float(tokens[i+1])
+            cx += dx
+            cy += dy
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 2
+        elif cmd == 'L':
+            cx = float(tokens[i])
+            cy = float(tokens[i+1])
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 2
+        elif cmd == 'h':
+            dx = float(tokens[i])
+            cx += dx
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 1
+        elif cmd == 'H':
+            cx = float(tokens[i])
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 1
+        elif cmd == 'v':
+            dy = float(tokens[i])
+            cy += dy
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 1
+        elif cmd == 'V':
+            cy = float(tokens[i])
+            current_subpath.append((cx * scale_factor, cy * scale_factor))
+            i += 1
+        elif cmd == 'c':
+            x1 = cx + float(tokens[i])
+            y1 = cy + float(tokens[i+1])
+            x2 = cx + float(tokens[i+2])
+            y2 = cy + float(tokens[i+3])
+            x3 = cx + float(tokens[i+4])
+            y3 = cy + float(tokens[i+5])
+            
+            steps = 6
+            for step in range(1, steps + 1):
+                t = step / steps
+                bx = (1-t)**3 * cx + 3*(1-t)**2 * t * x1 + 3*(1-t) * t**2 * x2 + t**3 * x3
+                by = (1-t)**3 * cy + 3*(1-t)**2 * t * y1 + 3*(1-t) * t**2 * y2 + t**3 * y3
+                current_subpath.append((bx * scale_factor, by * scale_factor))
+            cx, cy = x3, y3
+            i += 6
+        elif cmd == 'C':
+            x1 = float(tokens[i])
+            y1 = float(tokens[i+1])
+            x2 = float(tokens[i+2])
+            y2 = float(tokens[i+3])
+            x3 = float(tokens[i+4])
+            y3 = float(tokens[i+5])
+            
+            steps = 6
+            for step in range(1, steps + 1):
+                t = step / steps
+                bx = (1-t)**3 * cx + 3*(1-t)**2 * t * x1 + 3*(1-t) * t**2 * x2 + t**3 * x3
+                by = (1-t)**3 * cy + 3*(1-t)**2 * t * y1 + 3*(1-t) * t**2 * y2 + t**3 * y3
+                current_subpath.append((bx * scale_factor, by * scale_factor))
+            cx, cy = x3, y3
+            i += 6
+        elif cmd in ('a', 'A'):
+            rx = float(tokens[i])
+            ry = float(tokens[i+1])
+            rot = float(tokens[i+2])
+            large_arc = int(float(tokens[i+3]))
+            sweep = int(float(tokens[i+4]))
+            target_x = float(tokens[i+5])
+            target_y = float(tokens[i+6])
+            
+            if cmd == 'a':
+                x2 = cx + target_x
+                y2 = cy + target_y
+            else:
+                x2 = target_x
+                y2 = target_y
+                
+            if rx == 0 or ry == 0:
+                cx, cy = x2, y2
+                current_subpath.append((cx * scale_factor, cy * scale_factor))
+            else:
+                rx = abs(rx)
+                ry = abs(ry)
+                rot_rad = math.radians(rot)
+                cos_r = math.cos(rot_rad)
+                sin_r = math.sin(rot_rad)
+                
+                dx = (cx - x2) / 2.0
+                dy = (cy - y2) / 2.0
+                x1_prime = cos_r * dx + sin_r * dy
+                y1_prime = -sin_r * dx + cos_r * dy
+                
+                rx_sq = rx * rx
+                ry_sq = ry * ry
+                x1_prime_sq = x1_prime * x1_prime
+                y1_prime_sq = y1_prime * y1_prime
+                
+                radii_check = x1_prime_sq / rx_sq + y1_prime_sq / ry_sq
+                if radii_check > 1.0:
+                    rx *= math.sqrt(radii_check)
+                    ry *= math.sqrt(radii_check)
+                    rx_sq = rx * rx
+                    ry_sq = ry * ry
+                
+                sq = (rx_sq * ry_sq - rx_sq * y1_prime_sq - ry_sq * x1_prime_sq) / (rx_sq * y1_prime_sq + ry_sq * x1_prime_sq)
+                sq = max(0.0, sq)
+                coef = math.sqrt(sq)
+                if large_arc == sweep:
+                    coef = -coef
+                
+                cx_prime = coef * (rx * y1_prime / ry)
+                cy_prime = coef * (-ry * x1_prime / rx)
+                
+                center_x = cos_r * cx_prime - sin_r * cy_prime + (cx + x2) / 2.0
+                center_y = sin_r * cx_prime + cos_r * cy_prime + (cy + y2) / 2.0
+                
+                def angle_between(u, v):
+                    val = (u[0]*v[0] + u[1]*v[1]) / (math.sqrt(u[0]**2 + u[1]**2) * math.sqrt(v[0]**2 + v[1]**2))
+                    val = max(-1.0, min(1.0, val))
+                    ang = math.acos(val)
+                    if (u[0]*v[1] - u[1]*v[0]) < 0:
+                        ang = -ang
+                    return ang
+                
+                v1 = ((x1_prime - cx_prime)/rx, (y1_prime - cy_prime)/ry)
+                v2 = ((-x1_prime - cx_prime)/rx, (-y1_prime - cy_prime)/ry)
+                theta1 = angle_between((1.0, 0.0), v1)
+                d_theta = angle_between(v1, v2)
+                
+                if sweep == 0 and d_theta > 0:
+                    d_theta -= 2 * math.pi
+                elif sweep == 1 and d_theta < 0:
+                    d_theta += 2 * math.pi
+                
+                steps = 12
+                for step in range(1, steps + 1):
+                    t = step / steps
+                    ang = theta1 + t * d_theta
+                    px_val = rx * math.cos(ang)
+                    py_val = ry * math.sin(ang)
+                    x_rot = cos_r * px_val - sin_r * py_val + center_x
+                    y_rot = sin_r * px_val + cos_r * py_val + center_y
+                    current_subpath.append((x_rot * scale_factor, y_rot * scale_factor))
+                
+                cx, cy = x2, y2
+            i += 7
+        elif cmd in ('z', 'Z'):
+            if current_subpath:
+                subpaths.append(current_subpath)
+                current_subpath = []
+            cx, cy = sx, sy
+            
+    if current_subpath:
+        subpaths.append(current_subpath)
+    return subpaths
+
 
 def _resolve(cmd):
     """在 SwiftBar 受限 PATH 下找出可執行檔絕對路徑。
@@ -162,7 +364,7 @@ def provider_claude():
 # ---------- Provider:Codex ----------
 
 def provider_codex():
-    rec = {"name": "Codex", "short": "Cx", "icon": "chevron", "ok": False,
+    rec = {"name": "Codex", "short": "Cx", "icon": "openai", "ok": False,
            "plan": None, "five_hour": None, "seven_day": None}
     codex = _resolve("codex")
     if not codex:
@@ -469,63 +671,46 @@ GREEN = (52, 199, 89)
 YELLOW = (255, 204, 0)
 RED = (255, 59, 48)
 
-# Brand accents used for the tool icon itself; progress indicators still use
-# green/yellow/red so status remains immediately readable.
-BRAND_COLORS = {
-    "spark": (217, 119, 87),      # Claude / Anthropic warm orange
-    "chevron": (16, 163, 127),   # Codex / OpenAI green
-}
+# tier -> 顏色,與原生 app 一致:狀態由「剩餘」量決定,而非已用量。
+TIER_COLORS = {"good": GREEN, "warn": YELLOW, "critical": RED}
 
 
-def _rgb(pct):
-    if pct >= CRIT_PCT:
-        return RED
-    if pct >= WARN_PCT:
-        return YELLOW
-    return GREEN
+def _remaining_pct(w):
+    """剩餘 quota %(對齊原生 RemainingQuotaPresenter.remainingPercent):
+    used 視窗 = 100 - 已用;available 視窗(Antigravity)= 其可用 %。"""
+    pct = w.get("pct", 0)
+    remaining = pct if w.get("kind") == "available" else 100 - pct
+    return int(max(0, min(100, round(remaining))))
+
+
+def _tier(remaining):
+    """剩餘量 -> 狀態分級,門檻與原生 app 相同。"""
+    if remaining <= CRIT_REMAINING:
+        return "critical"
+    if remaining <= WARN_REMAINING:
+        return "warn"
+    return "good"
 
 
 def _rgb_for_window(w):
-    pct = w.get("pct", 0)
-    if w.get("kind") == "available":
-        if pct <= 100 - CRIT_PCT:
-            return RED
-        if pct <= 100 - WARN_PCT:
-            return YELLOW
-        return GREEN
-    return _rgb(pct)
-
-
-def _hex(pct):
-    return "#%02x%02x%02x" % _rgb(pct)
+    return TIER_COLORS[_tier(_remaining_pct(w))]
 
 
 def _hex_for_window(w):
     return "#%02x%02x%02x" % _rgb_for_window(w)
 
 
-def _dot(pct):
-    return "🔴" if pct >= CRIT_PCT else "🟡" if pct >= WARN_PCT else "🟢"
-
-
-def _worst(records):
-    pcts = [w["pct"] for r in records if r["ok"] for w in _windows(r) if w]
-    return max(pcts) if pcts else 0.0
-
-
 # ---------- menu bar 圖片渲染(PIL,選用) ----------
 
-def _is_dark():
-    try:
-        out = subprocess.run(["/usr/bin/defaults", "read", "-g", "AppleInterfaceStyle"],
-                             capture_output=True, text=True, timeout=2).stdout.strip()
-        return out == "Dark"
-    except Exception:
-        return True
-
-
 def _menubar_image(records):
-    """回傳 base64 PNG(膠囊:圖示 + 環形進度 + %),失敗回 None。"""
+    """回傳 base64 PNG(膠囊:扁平圖示 + 左下角狀態角標 + 剩餘 %),失敗回 None。
+
+    視覺概念對齊原生 menu app(StatusMenuImageRenderer):
+    - 數字顯示「剩餘」quota,固定白色。
+    - 狀態用圖示左下角的角標表示:warn 黃三角、crit 紅驚嘆號(皆含白環),
+      good 不顯示角標 —— 形狀+顏色雙重編碼,色盲友善。
+    - 圖示為扁平標記:Claude 火花、Codex OpenAI 標記、Antigravity 拱形。
+    """
     try:
         import base64
         import io
@@ -535,132 +720,165 @@ def _menubar_image(records):
         return None
 
     s = 3                       # 視網膜倍率(用 DPI 還原成點數)
-    H = 19                      # 邏輯高度(pt)
-    dark = _is_dark()
-    fg = (236, 236, 240) if dark else (38, 38, 42)
-    pill_bg = (255, 255, 255, 24) if dark else (0, 0, 0, 13)
-    pill_border = (255, 255, 255, 36) if dark else (255, 255, 255, 96)
-    pill_shadow = (0, 0, 0, 68) if dark else (0, 0, 0, 28)
-    track = (255, 255, 255, 48) if dark else (0, 0, 0, 38)
-
-    def mix(a, b, t):
-        return tuple(int(a[i] * (1 - t) + b[i] * t) for i in range(3))
-
-    def glow(col, alpha):
-        return col + (alpha,)
+    ss = 4                      # 圖示/角標額外超取樣,resize 後邊緣平滑
+    icon_pt = 14                # 圖示繪製基準單位(對齊原生 iconSize)
+    FG = (255, 255, 255)        # 數字 / 多數圖示用白色
+    LANCZOS = getattr(Image, "Resampling", Image).LANCZOS
 
     def font(px):
-        for n in ("/System/Library/Fonts/SFNSRounded.ttf", "/System/Library/Fonts/SFNS.ttf"):
+        for n in ("/System/Library/Fonts/SFNSMono.ttf",
+                  "/System/Library/Fonts/SFNSRounded.ttf",
+                  "/System/Library/Fonts/SFNS.ttf"):
             try:
                 return ImageFont.truetype(n, px)
             except Exception:
                 continue
         return ImageFont.load_default()
 
-    def mini_bar(width, height, pct, col):
-        im = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        d = ImageDraw.Draw(im)
-        radius = height / 2
-        d.rounded_rectangle((0, 0, width, height), radius=radius, fill=track)
-        if pct > 0:
-            fill_w = max(height, width * min(100, pct) / 100)
-            d.rounded_rectangle((0, 0, fill_w, height), radius=radius, fill=glow(col, 255))
-            d.line((1, 1, max(1, fill_w - 2), 1), fill=glow(mix(col, (255, 255, 255), 0.35), 160), width=1)
-        return im
-
-    def _badge(d, R, accent):
-        light = mix(accent, (255, 255, 255), 0.34 if dark else 0.18)
-        shade = mix(accent, (0, 0, 0), 0.40 if dark else 0.24)
-        d.rounded_rectangle((R * 0.07, R * 0.09, R * 0.93, R * 0.91),
-                            radius=R * 0.26, fill=glow(shade, 86))
-        d.rounded_rectangle((R * 0.12, R * 0.05, R * 0.88, R * 0.82),
-                            radius=R * 0.24, fill=glow(accent, 46))
-        d.arc((R * 0.18, R * 0.10, R * 0.84, R * 0.76),
-              210, 330, fill=glow(light, 135), width=max(1, int(R * 0.04)))
-
-    def spark(diam, accent, brand):     # Claude:faceted sparkle badge with orbit dots
-        ss = 4
-        R = diam * ss
+    def _canvas(px):            # 回傳 (image, draw, R) 供超取樣繪製
+        R = px * ss
         im = Image.new("RGBA", (R, R), (0, 0, 0, 0))
-        d = ImageDraw.Draw(im)
-        _badge(d, R, brand)
-        c = R / 2
-        bright = mix(fg, brand, 0.28)
-        inner, outer, bw = R * 0.08, R * 0.34, R * 0.08
-        for k in range(8):
-            a = math.pi * k / 4
-            pa = a + math.pi / 2
-            tip = (c + outer * math.cos(a), c + outer * math.sin(a))
-            b1 = (c + inner * math.cos(a) + bw * math.cos(pa),
-                  c + inner * math.sin(a) + bw * math.sin(pa))
-            b2 = (c + inner * math.cos(a) - bw * math.cos(pa),
-                  c + inner * math.sin(a) - bw * math.sin(pa))
-            fill = bright if k % 2 == 0 else mix(fg, brand, 0.58)
-            d.polygon([tip, b1, b2], fill=glow(fill, 245))
-        d.ellipse((c - R * 0.09, c - R * 0.09, c + R * 0.09, c + R * 0.09),
-                  fill=glow(fg, 255))
-        for px, py, rr in ((R * 0.76, R * 0.25, R * 0.045), (R * 0.25, R * 0.74, R * 0.035)):
-            d.ellipse((px - rr, py - rr, px + rr, py + rr), fill=glow(fg, 205))
-        return im.resize((diam, diam), Image.LANCZOS)
+        return im, ImageDraw.Draw(im), R
 
-    def chevron(diam, accent, brand):   # Codex:layered command chevrons inside a badge
-        ss = 4
-        R = diam * ss
-        im = Image.new("RGBA", (R, R), (0, 0, 0, 0))
-        d = ImageDraw.Draw(im)
-        _badge(d, R, brand)
-        w = int(R * 0.11)
-        shadow = glow(mix(brand, (0, 0, 0), 0.50), 150)
-        colors = [glow(mix(fg, brand, 0.34), 250), glow(fg, 245)]
-        for idx, off in enumerate((-R * 0.12, R * 0.14)):
-            pts = [(R * 0.31 + off, R * 0.30), (R * 0.56 + off, R * 0.5),
-                   (R * 0.31 + off, R * 0.70)]
-            d.line([(x + R * 0.025, y + R * 0.025) for x, y in pts],
-                   fill=shadow, width=w, joint="curve")
-            d.line(pts, fill=colors[idx], width=w, joint="curve")
-            for p in pts:        # 圓角端點
-                d.ellipse((p[0] - w / 2, p[1] - w / 2, p[0] + w / 2, p[1] + w / 2),
-                          fill=colors[idx])
-        return im.resize((diam, diam), Image.LANCZOS)
+    # ---- 扁平圖示(回傳邊長 px 的 RGBA)----
+    def icon_spark(px):         # Claude: 官方 starburst / 暖橘
+        im, d, R = _canvas(px)
+        subpaths = parse_svg_path(CLAUDE_PATH, target_size=R)
+        for pts in subpaths:
+            if len(pts) >= 3:
+                d.polygon(pts, fill=(217, 115, 79, 255))
+        return im.resize((px, px), LANCZOS)
 
-    icons = {"spark": spark, "chevron": chevron}
-    f = font(10 * s)
-    ph = 16 * s                 # 膠囊高度
-    pw = 58 * s                 # compact chip width
-    gap = 4 * s
-    canvas = Image.new("RGBA", (pw * len(records) + gap * (len(records) - 1), H * s),
-                       (0, 0, 0, 0))
-    d = ImageDraw.Draw(canvas)
-    y = (H * s - ph) // 2
-    x = 0
+    def icon_openai(px):        # Codex: OpenAI 官方標記 / 白色
+        im, d, R = _canvas(px)
+        subpaths = parse_svg_path(OPENAI_PATH, target_size=R)
+        
+        # Render onto a grayscale mask first to erase outlines to transparent
+        mask = Image.new("L", (R, R), 0)
+        d_mask = ImageDraw.Draw(mask)
+        
+        # Fill each subpath
+        for pts in subpaths:
+            if len(pts) >= 3:
+                d_mask.polygon(pts, fill=255)
+                
+        # Erase the outlines to separate petals with transparency
+        outline_w = max(1, int(round(8.0 * px * ss / 168.0)))
+        for pts in subpaths:
+            if len(pts) >= 3:
+                d_mask.polygon(pts, outline=0, width=outline_w)
+                
+        # Paste solid white onto the super-sampled image using the mask
+        im.paste((255, 255, 255, 255), (0, 0), mask=mask)
+        return im.resize((px, px), LANCZOS)
+
+    def icon_gravity(px):       # Antigravity: 官方 logo / 彩色
+        import base64
+        import io
+        data = base64.b64decode(ANTIGRAVITY_LOGO_B64)
+        img_ag = Image.open(io.BytesIO(data))
+        # Resize to fit within px x px maintaining aspect ratio
+        img_ag.thumbnail((px, px), LANCZOS)
+        # Create a centered canvas
+        canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
+        canvas.paste(img_ag, ((px - img_ag.width) // 2, (px - img_ag.height) // 2))
+        return canvas
+
+    def icon_dot(px):           # 其他:中性圓點
+        im, d, R = _canvas(px)
+        u = R / icon_pt
+        d.ellipse((3 * u, 3 * u, R - 3 * u, R - 3 * u), fill=FG + (217,))
+        return im.resize((px, px), LANCZOS)
+
+    icons = {"spark": icon_spark, "openai": icon_openai, "gravity": icon_gravity}
+
+    # ---- 左下角狀態角標 ----
+    def badge_warn(px):         # 黃三角 + 白環 + 深色驚嘆號
+        im, d, R = _canvas(px)
+        inset = R * 0.06
+        apex, bl, br = (R / 2, inset), (inset, R - inset), (R - inset, R - inset)
+        d.polygon([apex, bl, br], fill=(255, 255, 255, 235))   # 白環
+        cx, cy = (apex[0] + bl[0] + br[0]) / 3, (apex[1] + bl[1] + br[1]) / 3
+        tri = [(cx + (p[0] - cx) * 0.72, cy + (p[1] - cy) * 0.72) for p in (apex, bl, br)]
+        d.polygon(tri, fill=(255, 204, 0, 255))
+        bw = R * 0.12
+        d.rounded_rectangle((R / 2 - bw / 2, R * 0.40, R / 2 + bw / 2, R * 0.62),
+                            radius=bw / 2, fill=(0, 0, 0, 184))
+        dot = R * 0.13
+        d.ellipse((R / 2 - dot / 2, R * 0.68, R / 2 + dot / 2, R * 0.68 + dot),
+                  fill=(0, 0, 0, 184))
+        return im.resize((px, px), LANCZOS)
+
+    def badge_crit(px):         # 紅圓 + 白環 + 白驚嘆號
+        im, d, R = _canvas(px)
+        d.ellipse((0, 0, R, R), fill=(255, 255, 255, 235))     # 白環
+        r2 = R * 0.12
+        d.ellipse((r2, r2, R - r2, R - r2), fill=(255, 59, 48, 255))
+        bw = R * 0.15
+        d.rounded_rectangle((R / 2 - bw / 2, R * 0.27, R / 2 + bw / 2, R * 0.57),
+                            radius=bw / 2, fill=FG + (255,))
+        dot = bw * 1.1
+        d.ellipse((R / 2 - dot / 2, R * 0.64, R / 2 + dot / 2, R * 0.64 + dot),
+                  fill=FG + (255,))
+        return im.resize((px, px), LANCZOS)
+
+    badges = {"warn": badge_warn, "critical": badge_crit}
+
+    # ---- 版面(以 s-像素計;幾何對齊原生 chip)----
+    H = 18 * s                  # 膠囊高度
+    pad = 7 * s
+    icon_px = icon_pt * s
+    icon_gap = 5 * s
+    chip_gap = 5 * s
+    f = font(11 * s)
+    meas = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
+
+    def number_for(r):
+        ws = _windows(r) if r["ok"] else []
+        return str(_remaining_pct(ws[0])) if ws else "—"
+
+    chips = []
     for r in records:
-        # Subtle shadow/border gives the menu-bar chips depth without getting noisy.
-        d.rounded_rectangle((x, y + 0.6 * s, x + pw, y + ph + 0.6 * s),
-                            radius=ph / 2, fill=pill_shadow)
-        d.rounded_rectangle((x, y, x + pw, y + ph), radius=ph / 2,
-                            fill=pill_bg, outline=pill_border, width=max(1, s // 2))
-        # 用第一個視窗當主要顯示；Claude/Codex 是 5h，Antigravity 是限流中的 pool。
-        rec_windows = _windows(r) if r["ok"] else []
-        w5 = rec_windows[0] if rec_windows else None
-        pct = w5["pct"] if w5 else 0
-        accent = _rgb_for_window(w5) if w5 else ((142, 142, 147) if dark else (116, 116, 122))
-        draw_icon = icons.get(r.get("icon"))
-        brand = BRAND_COLORS.get(r.get("icon"), accent) if w5 else accent
+        text = number_for(r)
+        num_w = int(math.ceil(meas.textlength(text, font=f)))
+        chips.append((r, text, num_w, pad * 2 + icon_px + icon_gap + num_w))
+
+    total = sum(c[3] for c in chips) + chip_gap * max(0, len(chips) - 1)
+    canvas = Image.new("RGBA", (max(1, total), H), (0, 0, 0, 0))
+    d = ImageDraw.Draw(canvas)
+
+    x = 0
+    for r, text, num_w, chip_w in chips:
+        # 固定白色半透明膠囊(對齊原生 chip:fill .17 / stroke .23)
+        d.rounded_rectangle((x, 0, x + chip_w - 1, H - 1), radius=H / 2,
+                            fill=(255, 255, 255, 43), outline=(255, 255, 255, 59),
+                            width=max(1, s // 2))
+
+        icon_left = x + pad
+        icon_top = (H - icon_px) // 2
+        draw_icon = icons.get(r.get("icon")) or (icon_dot if r["ok"] else None)
         if draw_icon:
-            ic = draw_icon(12 * s, accent, brand)
-            canvas.alpha_composite(ic, (x + 6 * s, y + (ph - 12 * s) // 2))
+            canvas.alpha_composite(draw_icon(icon_px), (int(icon_left), int(icon_top)))
         else:
-            d.text((x + 10 * s, y + ph / 2), r["short"], font=f, fill=fg, anchor="lm")
-        if w5:
-            mb = mini_bar(17 * s, 4 * s, pct, accent)
-            canvas.alpha_composite(mb, (x + 22 * s, y + (ph - 4 * s) // 2))
-            d.text((x + pw - 6 * s, y + ph / 2), f"{pct:.0f}", font=f, fill=fg, anchor="rm")
-        else:
-            d.text((x + pw - 7 * s, y + ph / 2), "—", font=f, fill=fg, anchor="rm")
-        x += pw + gap
+            d.text((icon_left + icon_px / 2, H / 2), r["short"], font=f,
+                   fill=FG + (255,), anchor="mm")
+
+        # 狀態角標:依第一個視窗的剩餘量決定 tier,good 不畫
+        rec_windows = _windows(r) if r["ok"] else []
+        if rec_windows:
+            make_badge = badges.get(_tier(_remaining_pct(rec_windows[0])))
+            if make_badge:
+                bsize = int(icon_px * 0.68)
+                bx = icon_left - bsize * 0.28
+                by = icon_top + icon_px - bsize * 0.84
+                canvas.alpha_composite(make_badge(bsize), (int(round(bx)), int(round(by))))
+
+        d.text((icon_left + icon_px + icon_gap, H / 2), text, font=f,
+               fill=FG + (255,), anchor="lm")
+        x += chip_w + chip_gap
 
     buf = io.BytesIO()
-    # DPI = 72*s 讓 NSImage 把點數還原成 H pt,像素仍為 @s 倍 → 視網膜清晰
+    # DPI = 72*s 讓 NSImage 把點數還原成 pt,像素仍為 @s 倍 → 視網膜清晰
     canvas.save(buf, format="PNG", dpi=(72 * s, 72 * s))
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
@@ -714,7 +932,7 @@ def main():
         for r in records:
             rec_windows = _windows(r) if r["ok"] else []
             if r["ok"] and rec_windows:
-                parts.append(f"{r['short']} {rec_windows[0]['pct']:.0f}%")
+                parts.append(f"{r['short']} {_remaining_pct(rec_windows[0])}%")
             elif r["ok"] and r.get("status") == "ready":
                 parts.append(f"{r['short']} ✓")
             else:
