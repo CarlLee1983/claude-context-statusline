@@ -28,6 +28,11 @@ public enum RemainingQuotaPresenter {
         }.joined(separator: " ")
     }
 
+    public static func emptyDetailTitle(for snapshot: ProviderSnapshot) -> String? {
+        guard snapshot.windows.isEmpty else { return nil }
+        return snapshot.isAvailable ? "No quota data available" : "Unavailable"
+    }
+
     public static func detailTitle(for window: UsageWindow) -> String {
         let remaining = remainingPercent(for: window)
         let resetText = window.resetAt.map { " · reset \($0.formatted(date: .omitted, time: .shortened))" } ?? ""

@@ -57,6 +57,21 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.fallbackTitle(for: [unavailable]) == "Codex —")
     }
 
+    @Test("builds empty provider dropdown details for unavailable and no data states")
+    func emptyProviderDropdownDetails() {
+        let unavailable = ProviderSnapshot(name: "Codex", shortName: "CX", windows: [], isAvailable: false)
+        let noData = ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: [], isAvailable: true)
+        let withData = ProviderSnapshot(
+            name: "Antigravity",
+            shortName: "AG",
+            windows: [UsageWindow(label: "Gemini", percent: 100, kind: .available)]
+        )
+
+        #expect(RemainingQuotaPresenter.emptyDetailTitle(for: unavailable) == "Unavailable")
+        #expect(RemainingQuotaPresenter.emptyDetailTitle(for: noData) == "No quota data available")
+        #expect(RemainingQuotaPresenter.emptyDetailTitle(for: withData) == nil)
+    }
+
     @Test("builds dropdown details with remaining and source semantics")
     func dropdownDetailsDescribeRemainingAndSourceSemantics() {
         let reset = Date(timeIntervalSince1970: 1_800_000_000)

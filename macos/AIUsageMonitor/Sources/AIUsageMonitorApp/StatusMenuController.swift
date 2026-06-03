@@ -69,6 +69,12 @@ final class StatusMenuController {
                 providerItem.isEnabled = false
                 menu.addItem(providerItem)
 
+                if let emptyDetailTitle = RemainingQuotaPresenter.emptyDetailTitle(for: snapshot) {
+                    let item = NSMenuItem(title: "  \(emptyDetailTitle)", action: nil, keyEquivalent: "")
+                    item.isEnabled = false
+                    menu.addItem(item)
+                }
+
                 for window in snapshot.windows {
                     let item = NSMenuItem(
                         title: "  \(RemainingQuotaPresenter.detailTitle(for: window))",
