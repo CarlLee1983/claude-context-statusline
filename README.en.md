@@ -2,6 +2,26 @@
 
 [繁體中文](README.md) · **English**
 
+A small toolkit for keeping **AI CLI usage visible** on macOS. It started as a Claude Code
+context statusline and grew into two ways to keep your subscription **rate-limit headroom**
+in the macOS menu bar: a native menu bar app and a SwiftBar plugin.
+
+## Three tools
+
+| Tool | Where it shows | What it watches | Dependencies | Install |
+|------|----------------|-----------------|--------------|---------|
+| [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `./install.sh` |
+| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
+| [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | Copy into SwiftBar plugins dir |
+
+> The two kinds of data differ: **ctx-statusline** shows "how much of a single session's
+> context window is used"; the **native app** and **SwiftBar plugin** show "how much of your
+> subscription's 5-hour / 7-day rate limit is left."
+
+---
+
+## 1. Context statusline (`ctx-statusline.py`)
+
 A persistent statusline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that shows how much of the current session's context window is in use — see at a glance how much room is left.
 
 ```
@@ -14,12 +34,12 @@ Opus 4.8 · [████░░░░░░] 39% · 78k/200k
 - Reflects the main session only (filters out subagent / sidechain messages, matching `/context`)
 - Pure standard library, single file, zero dependencies; no error ever breaks the statusline
 
-## Requirements
+### Requirements
 
 - macOS (uses the built-in `/usr/bin/python3`, nothing to install)
 - Claude Code
 
-## Install
+### Install
 
 ```bash
 git clone https://github.com/CarlLee1983/claude-context-statusline.git
@@ -37,13 +57,13 @@ Then **open a new Claude Code session** to see the statusline.
 > If your Claude Code config is not in `~/.claude`, point at it with `CLAUDE_CONFIG_DIR`:
 > `CLAUDE_CONFIG_DIR=/path/to/config ./install.sh`
 
-## Uninstall
+### Uninstall
 
 ```bash
 ./uninstall.sh
 ```
 
-## How it works
+### How it works
 
 Each time Claude Code refreshes the statusline it pipes a JSON blob to the statusline command on stdin, containing `model.id` and `transcript_path`. This script:
 
@@ -53,7 +73,7 @@ Each time Claude Code refreshes the statusline it pipes a JSON blob to the statu
 
 For efficiency, large transcripts only read the trailing ~2MB; it falls back to a full scan only when nothing is found in the tail (e.g. recent messages are all sidechain).
 
-## Customize
+### Customize
 
 Edit the constants at the top of `~/.claude/hooks/ctx-statusline.py`:
 
@@ -66,18 +86,52 @@ Edit the constants at the top of `~/.claude/hooks/ctx-statusline.py`:
 
 Restart a session to apply.
 
+---
+
+## 2. Native menu bar app (`macos/AIUsageMonitor`)
+
+A pure-Swift macOS menu bar app that natively fetches live Claude Code and Codex rate limits
+(5h / 7d), shows remaining headroom in the menu bar, and auto-refreshes every 5 minutes. No
+Python runtime dependency, and no signing or notarization needed for local development.
+
+For full build, architecture, and troubleshooting notes see **[macos/AIUsageMonitor/README.en.md](macos/AIUsageMonitor/README.en.md)**.
+
+```bash
+cd macos/AIUsageMonitor
+./Scripts/build-app.sh
+open .build/AIUsageMonitor.app
+```
+
+---
+
+## 3. SwiftBar plugin (`swiftbar/`)
+
+If you already use [SwiftBar](https://github.com/swiftbar/SwiftBar), a single-file Python plugin
+gives you the same rate-limit data: the menu bar shows Claude Code and Codex (plus Antigravity)
+5h / 7d headroom, with progress bars and reset times in the dropdown.
+
+For full install and configuration see **[swiftbar/README.en.md](swiftbar/README.en.md)**.
+
+---
+
 ## Development
 
-Pure standard library, no dependencies to install. Run the tests:
+ctx-statusline and the SwiftBar plugin are pure standard-library Python with nothing to install. Run the tests:
 
 ```bash
 python3 -m unittest discover -s tests -v
 ```
 
-Manually inspect the output (includes ANSI color codes):
+Manually inspect ctx-statusline output (includes ANSI color codes):
 
 ```bash
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
+```
+
+Test the native app:
+
+```bash
+cd macos/AIUsageMonitor && swift test
 ```
 
 Contributions welcome — see [CONTRIBUTING.md](CONTRIBUTING.md); changes are tracked in [CHANGELOG.md](CHANGELOG.md).

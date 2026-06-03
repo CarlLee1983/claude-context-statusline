@@ -10,6 +10,16 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- SwiftBar 外掛（`swiftbar/ai-usage.60s.py`）：單檔 Python 在選單列顯示 Claude、Codex
+  （與 Antigravity）的 5h / 7d 速率限制剩餘額度；可選 Pillow 膠囊圖示、兩段式快取退避、
+  狀態色與形狀角標皆對齊原生 App。
+  SwiftBar plugin (`swiftbar/ai-usage.60s.py`): single-file Python showing Claude,
+  Codex (and Antigravity) 5h / 7d rate-limit headroom in the menu bar, with optional
+  Pillow capsule icon, two-stage caching/backoff, and status colors aligned with the native app.
+- 文件改寫成「工具集」總覽：頂層 `README.md` / `README.en.md` 並列三個工具，
+  並為 `macos/AIUsageMonitor` 與 `swiftbar/` 補上中英雙語 README。
+  Docs reworked into a toolkit overview: top-level `README` lists all three tools,
+  with bilingual READMEs added for `macos/AIUsageMonitor` and `swiftbar/`.
 - macOS 原生選單列 app（`macos/AIUsageMonitor`）：以原生 Swift 抓取 Claude 與 Codex 即時用量，
   選單列顯示剩餘額度,每 5 分鐘自動刷新(取代先前的 demo 假資料);Antigravity 暫時移除。
   Native macOS menu bar app: live Claude + Codex usage in native Swift with a
