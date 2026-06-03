@@ -10,6 +10,12 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- SwiftBar 外掛一鍵安裝腳本（`swiftbar/install.sh`）：自動讀 SwiftBar 偏好的 plugin 目錄、
+  symlink 外掛、`chmod +x` 並刷新；支援以位置參數 / `SWIFTBAR_PLUGIN_DIR` 覆寫目錄、
+  `SWIFTBAR_INSTALL_COPY=1` 改用複製。
+  One-shot SwiftBar installer (`swiftbar/install.sh`): auto-detects the plugin folder, symlinks
+  the plugin, `chmod +x`, refreshes; folder override via arg / `SWIFTBAR_PLUGIN_DIR`, copy mode
+  via `SWIFTBAR_INSTALL_COPY=1`.
 - 原生 App 接上 Antigravity provider：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota，
   取不到時退回讀本機帳號檔 cooldown，做法對齊 SwiftBar 外掛；新增 `AntigravityUsageProvider`、
   `AntigravityUsageTextCapture`、`AntigravityAccountsParser`，並串進 `LiveUsageSnapshotProvider`。

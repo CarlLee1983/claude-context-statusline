@@ -22,7 +22,7 @@ python3 -m unittest discover -s tests -v
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
 
 # 檢查 shell 腳本
-bash -n install.sh uninstall.sh && shellcheck install.sh uninstall.sh
+bash -n install.sh uninstall.sh swiftbar/install.sh && shellcheck install.sh uninstall.sh swiftbar/install.sh
 
 # 安裝到 ~/.claude/（複製腳本 + 併入 settings.json，會自動備份）
 # 可用 CLAUDE_CONFIG_DIR 指定其他設定目錄（測試安裝時很有用）

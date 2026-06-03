@@ -42,15 +42,34 @@ Three providers are built in:
 
 ## Install
 
-1. Install and launch SwiftBar, choosing a **plugins folder** on first run (e.g. `~/.config/swiftbar`).
-2. Put the plugin in that folder (copy or symlink — a symlink is easier to keep in sync with the repo):
+First install and launch SwiftBar (`brew install --cask swiftbar`), choosing a **plugins folder** on first run.
 
-   ```bash
-   ln -s "$PWD/swiftbar/ai-usage.60s.py" ~/.config/swiftbar/ai-usage.60s.py
-   chmod +x swiftbar/ai-usage.60s.py
-   ```
+### One-shot install (recommended)
 
-3. Click **Refresh All** in the SwiftBar menu (or restart SwiftBar).
+```bash
+./swiftbar/install.sh
+```
+
+The script reads SwiftBar's configured plugin folder from its preferences → **symlinks** the plugin
+in (so a later `git pull` updates it) → `chmod +x` → asks SwiftBar to refresh. If the folder can't be
+read, it falls back to `~/.config/swiftbar` and tells you to point SwiftBar's Plugin Folder there.
+
+Override the folder, or copy instead of symlink:
+
+```bash
+./swiftbar/install.sh /path/to/plugins          # positional arg
+SWIFTBAR_PLUGIN_DIR=/path ./swiftbar/install.sh # same, via env var
+SWIFTBAR_INSTALL_COPY=1 ./swiftbar/install.sh   # copy instead of symlink (sharing to a machine without this repo)
+```
+
+### Manual install
+
+```bash
+ln -s "$PWD/swiftbar/ai-usage.60s.py" ~/.config/swiftbar/ai-usage.60s.py
+chmod +x swiftbar/ai-usage.60s.py
+```
+
+Then click **Refresh All** in the SwiftBar menu (or restart SwiftBar).
 
 > The `60s` in the filename is SwiftBar's refresh-interval convention (re-run every 60 seconds).
 > Rename to change it, e.g. `ai-usage.5m.py`. Actual endpoint calls are throttled separately (see

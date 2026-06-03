@@ -36,15 +36,34 @@
 
 ## 安裝
 
-1. 安裝並開啟 SwiftBar，於首次啟動時指定一個 **plugins 資料夾**（例如 `~/.config/swiftbar`）。
-2. 把外掛放進該資料夾（複製或建立符號連結；用連結較容易隨 repo 更新）：
+先安裝並啟動 SwiftBar（`brew install --cask swiftbar`），首次啟動時指定一個 **plugins 資料夾**。
 
-   ```bash
-   ln -s "$PWD/swiftbar/ai-usage.60s.py" ~/.config/swiftbar/ai-usage.60s.py
-   chmod +x swiftbar/ai-usage.60s.py
-   ```
+### 一鍵安裝（建議）
 
-3. 在 SwiftBar 選單按 **Refresh All**（或重開 SwiftBar）。
+```bash
+./swiftbar/install.sh
+```
+
+腳本會自動讀取 SwiftBar 偏好裡的 plugin 目錄 → 把外掛 **symlink** 進去（方便日後 `git pull` 更新）
+→ `chmod +x` → 請 SwiftBar 立即刷新。若讀不到目錄，會退回 `~/.config/swiftbar` 並提示你在
+SwiftBar 設定中把 Plugin Folder 指向該處。
+
+覆寫目錄或改用「複製」：
+
+```bash
+./swiftbar/install.sh /path/to/plugins          # 指定目錄（位置參數）
+SWIFTBAR_PLUGIN_DIR=/path ./swiftbar/install.sh # 同上，用環境變數
+SWIFTBAR_INSTALL_COPY=1 ./swiftbar/install.sh   # 用複製而非 symlink（分享到沒有本 repo 的機器）
+```
+
+### 手動安裝
+
+```bash
+ln -s "$PWD/swiftbar/ai-usage.60s.py" ~/.config/swiftbar/ai-usage.60s.py
+chmod +x swiftbar/ai-usage.60s.py
+```
+
+放好後在 SwiftBar 選單按 **Refresh All**（或重開 SwiftBar）。
 
 > 檔名中的 `60s` 是 SwiftBar 的刷新間隔慣例（每 60 秒重跑一次）。要改頻率就改檔名，
 > 例如 `ai-usage.5m.py`。實際對端點的呼叫另有節流（見下方快取），不會因此猛打。
