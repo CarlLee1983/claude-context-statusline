@@ -26,6 +26,9 @@ App 以 accessory（`LSUIElement`）形式常駐選單列，不在 Dock 顯示�
 
 ## 安裝與開機啟動
 
+> 用 Homebrew：`brew install CarlLee1983/tap/ai-usage-monitor`，再執行 `ai-usage-monitor`
+> 啟動（首次會裝到 `~/Applications`）。以下為從源碼建置的方式。
+
 `.build/` 內的 bundle 每次重 build 會被覆蓋，不適合當常駐目標。要長期使用，建置後安裝到 `/Applications`：
 
 ```bash

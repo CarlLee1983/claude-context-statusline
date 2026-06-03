@@ -36,6 +36,9 @@
 
 ## 安裝
 
+> 用 Homebrew：`brew install CarlLee1983/tap/swiftbar-ai-usage`，再依 caveats 把外掛 symlink
+> 進 SwiftBar 的 plugins 目錄。以下為手動安裝方式。
+
 先安裝並啟動 SwiftBar（`brew install --cask swiftbar`），首次啟動時指定一個 **plugins 資料夾**。
 
 ### 一鍵安裝（建議）

@@ -10,13 +10,32 @@ in the macOS menu bar: a native menu bar app and a SwiftBar plugin.
 
 | Tool | Where it shows | What it watches | Dependencies | Install |
 |------|----------------|-----------------|--------------|---------|
-| [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `./install.sh` |
-| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/install-app.sh` |
-| [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | `./swiftbar/install.sh` |
+| [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `brew install CarlLee1983/tap/ctx-statusline` (or `./install.sh`) |
+| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor` (or `./Scripts/install-app.sh`) |
+| [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | `brew install CarlLee1983/tap/swiftbar-ai-usage` (or `./swiftbar/install.sh`) |
 
 > The two kinds of data differ: **ctx-statusline** shows "how much of a single session's
 > context window is used"; the **native app** and **SwiftBar plugin** show "how much of your
 > subscription's 5-hour / 7-day rate limit is left."
+
+---
+
+## Install with Homebrew (recommended)
+
+```bash
+brew tap CarlLee1983/tap
+brew install ctx-statusline ai-usage-monitor swiftbar-ai-usage
+```
+
+Run each tool's one-time setup afterwards (install never touches your config files):
+
+```bash
+ctx-statusline-setup     # merge into ~/.claude/settings.json, then restart Claude Code
+ai-usage-monitor         # first run installs the app to ~/Applications and launches it
+# SwiftBar plugin: follow the brew caveats to symlink it into your SwiftBar plugins folder
+```
+
+Each formula can be installed independently.
 
 ---
 

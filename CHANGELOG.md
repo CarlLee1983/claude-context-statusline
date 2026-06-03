@@ -10,6 +10,16 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- Homebrew tap 一鍵安裝：`brew tap CarlLee1983/tap` 後可 `brew install` 三個元件
+  （`ctx-statusline` / `ai-usage-monitor` / `swiftbar-ai-usage`）。三者皆從源碼 build，
+  無需簽章/公證；安裝期間不改使用者設定，改由 `ctx-statusline-setup`、`ai-usage-monitor`
+  啟動器與 caveats 完成。新增 `ctx-statusline-setup`、`packaging/homebrew/Formula/*.rb`、
+  `Scripts/release.sh`，並把 `build-app.sh` 參數化（`CONFIGURATION` / `APP_VERSION`）。
+  One-shot Homebrew install: `brew tap CarlLee1983/tap` then `brew install` the three
+  components. All build from source (no signing/notarization); install never touches user
+  config — wiring is done by `ctx-statusline-setup`, the `ai-usage-monitor` launcher, and
+  caveats. Adds `ctx-statusline-setup`, `packaging/homebrew/Formula/*.rb`, `Scripts/release.sh`,
+  and parameterizes `build-app.sh` (`CONFIGURATION` / `APP_VERSION`).
 - 原生 App 安裝腳本與開機啟動：`macos/AIUsageMonitor/Scripts/install-app.sh`（build → 關舊版 →
   複製到 `/Applications` → 啟動，可用 `APP_INSTALL_DIR` 覆寫）；選單新增 **Launch at Login** 開關，
   以原生 `SMAppService` 註冊登入項目。

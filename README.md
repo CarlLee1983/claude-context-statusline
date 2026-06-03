@@ -9,12 +9,31 @@
 
 | 工具 | 顯示位置 | 監看對象 | 相依 | 安裝 |
 |------|----------|----------|------|------|
-| [**ctx-statusline**](#1-context-狀態列ctx-statuslinepy) | Claude Code 狀態列 | 目前 session 的 **context window** 用量 | 系統 `python3`，零相依 | `./install.sh` |
-| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `./Scripts/install-app.sh` |
-| [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | `./swiftbar/install.sh` |
+| [**ctx-statusline**](#1-context-狀態列ctx-statuslinepy) | Claude Code 狀態列 | 目前 session 的 **context window** 用量 | 系統 `python3`，零相依 | `brew install CarlLee1983/tap/ctx-statusline`（或 `./install.sh`） |
+| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor`（或 `./Scripts/install-app.sh`） |
+| [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | `brew install CarlLee1983/tap/swiftbar-ai-usage`（或 `./swiftbar/install.sh`） |
 
 > 兩類資料不同：**ctx-statusline** 看的是「單一 session 把 context window 用掉多少」；
 > **原生 App** 與 **SwiftBar 外掛** 看的是「訂閱方案的 5 小時 / 7 天速率限制還剩多少」。
+
+---
+
+## 用 Homebrew 一鍵安裝（推薦）
+
+```bash
+brew tap CarlLee1983/tap
+brew install ctx-statusline ai-usage-monitor swiftbar-ai-usage
+```
+
+安裝後各自跑一次設定（不會在安裝期間改你的設定檔）：
+
+```bash
+ctx-statusline-setup     # 併入 ~/.claude/settings.json，然後重開 Claude Code session
+ai-usage-monitor         # 首次執行會把 App 裝到 ~/Applications 並啟動
+# SwiftBar 外掛：依 brew 安裝後的 caveats 提示 symlink 進 SwiftBar plugins 目錄
+```
+
+只想裝其中一個？三個 formula 可單獨 `brew install`。
 
 ---
 
