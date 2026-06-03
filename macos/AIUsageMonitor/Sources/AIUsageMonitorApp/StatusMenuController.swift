@@ -1,6 +1,7 @@
 import AIUsageMonitorCore
 import AppKit
 import Foundation
+import ServiceManagement
 
 @MainActor
 final class StatusMenuController {
@@ -94,6 +95,12 @@ final class StatusMenuController {
         }
 
         menu.addItem(.separator())
+
+        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+        loginItem.target = self
+        loginItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        menu.addItem(loginItem)
+
         let refreshItem = NSMenuItem(title: isRefreshing ? "Refreshing…" : "Refresh", action: #selector(refreshMenuItemSelected), keyEquivalent: "r")
         refreshItem.target = self
         refreshItem.isEnabled = !isRefreshing
@@ -108,6 +115,23 @@ final class StatusMenuController {
 
     @objc private func refreshMenuItemSelected() {
         Task { await refresh() }
+    }
+
+    /// Toggle the app's "Launch at Login" registration via the native
+    /// ServiceManagement API. Reflects/updates the menu checkmark. Never crashes:
+    /// any registration error is logged and swallowed (e.g. when running from a
+    /// non-bundle dev build via `swift run`).
+    @objc private func toggleLaunchAtLogin() {
+        do {
+            if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            } else {
+                try SMAppService.mainApp.register()
+            }
+        } catch {
+            NSLog("AIUsageMonitor: Launch at Login toggle failed: \(error)")
+        }
+        rebuildMenu()
     }
 
     @objc private func quitMenuItemSelected() {

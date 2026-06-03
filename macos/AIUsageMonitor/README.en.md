@@ -26,6 +26,26 @@ swift run AIUsageMonitorApp
 The app runs as an accessory (`LSUIElement`) menu bar app — no Dock icon — and needs no signing or
 notarization for local development.
 
+## Install & launch at login
+
+The bundle in `.build/` is wiped on every rebuild, so it's a poor persistent target. For regular use, build and install into `/Applications`:
+
+```bash
+cd macos/AIUsageMonitor
+./Scripts/install-app.sh
+```
+
+The script: builds → quits any running instance → copies to `/Applications/AIUsageMonitor.app` → opens it.
+Override the install location (e.g. if you can't write to `/Applications`):
+
+```bash
+APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
+```
+
+**Launch at login**: click the menu bar icon → check **Launch at Login**. This registers a login item
+via the native `SMAppService` API (it also appears in System Settings → General → Login Items, where you
+can toggle it). Installing to `/Applications` first gives a stable path so the registration sticks.
+
 ## Current coverage
 
 - **Live Claude Code usage**: Keychain OAuth token → Anthropic usage endpoint, 5h / 7d windows.

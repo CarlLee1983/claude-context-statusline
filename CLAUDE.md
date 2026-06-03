@@ -21,8 +21,9 @@ python3 -m unittest discover -s tests -v
 # 用模擬的 statusline JSON 餵入腳本，觀察輸出（會帶 ANSI 色碼）
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
 
-# 檢查 shell 腳本
-bash -n install.sh uninstall.sh swiftbar/install.sh && shellcheck install.sh uninstall.sh swiftbar/install.sh
+# 檢查 shell 腳本（注意：zsh 下別用未加引號的變數展開多檔，會不分詞；直接列檔最穩）
+bash -n install.sh uninstall.sh swiftbar/install.sh macos/AIUsageMonitor/Scripts/*.sh
+shellcheck install.sh uninstall.sh swiftbar/install.sh macos/AIUsageMonitor/Scripts/*.sh
 
 # 安裝到 ~/.claude/（複製腳本 + 併入 settings.json，會自動備份）
 # 可用 CLAUDE_CONFIG_DIR 指定其他設定目錄（測試安裝時很有用）
@@ -61,7 +62,8 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 - provider 各自負責一個來源：`ClaudeUsageProvider`（Keychain token → Anthropic usage 端點）、`CodexUsageProvider`（`codex app-server` JSON-RPC）、`AntigravityUsageProvider`（先 PTY 驅動 `agy /usage`，退回讀帳號檔 cooldown），由 `LiveUsageSnapshotProvider` 彙整成快照。
 - `RemainingQuotaPresenter` 一律以「**剩餘**額度」決定顯示文字與狀態分級（非已用量）；SwiftBar 外掛刻意對齊這個邏輯。
 - Antigravity 取數對齊 SwiftBar：`AntigravityUsageTextCapture`（PTY thin boundary，不單測）+ `AntigravityUsageParser`（去 ANSI 解析面板）+ `AntigravityAccountsParser`（pure，帳號檔 cooldown）。注意 `AntigravityUsageParser.stripANSI` 必須用真實 ESC byte（`"\u{1B}"`）餵 ICU regex，不能用 raw string `\u{001B}`（ICU 不認得）。
-- 開發指令：`cd macos/AIUsageMonitor && swift test`（測試）、`./Scripts/build-app.sh`（產 `.app` bundle，含 `LSUIElement`）。
+- 開發指令：`cd macos/AIUsageMonitor && swift test`（測試）、`./Scripts/build-app.sh`（產 `.app` bundle，含 `LSUIElement`）、`./Scripts/install-app.sh`（build + 複製到 `/Applications`，可用 `APP_INSTALL_DIR` 覆寫、`APP_INSTALL_OPEN=0` 不自動開）。
+- 開機啟動：選單的 **Launch at Login** 用原生 `SMAppService.mainApp`（macOS 13+）註冊登入項目；需安裝到固定路徑（`/Applications`）才穩定，故先 `install-app.sh` 再開。
 
 ### SwiftBar 外掛（`swiftbar/ai-usage.60s.py`）
 

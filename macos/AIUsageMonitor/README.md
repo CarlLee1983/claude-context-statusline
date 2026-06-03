@@ -24,6 +24,26 @@ swift run AIUsageMonitorApp
 
 App 以 accessory（`LSUIElement`）形式常駐選單列，不在 Dock 顯示；本機開發無需簽章或公證。
 
+## 安裝與開機啟動
+
+`.build/` 內的 bundle 每次重 build 會被覆蓋，不適合當常駐目標。要長期使用，建置後安裝到 `/Applications`：
+
+```bash
+cd macos/AIUsageMonitor
+./Scripts/install-app.sh
+```
+
+腳本會：build → 關閉執行中的舊版 → 複製到 `/Applications/AIUsageMonitor.app` → 開啟。
+覆寫安裝位置（例如沒有 `/Applications` 寫入權限時）：
+
+```bash
+APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
+```
+
+**開機自動啟動**：點選單列圖示 → 勾選 **Launch at Login**。這用 macOS 原生 `SMAppService`
+註冊登入項目（也會出現在 系統設定 → 一般 → 登入項目，可在那裡開關）。安裝到 `/Applications`
+後路徑固定，註冊才穩定——所以請先 `install-app.sh` 再開這個開關。
+
 ## 目前涵蓋範圍
 
 - **Claude Code 即時用量**：Keychain OAuth token → Anthropic usage 端點，取 5h / 7d 視窗。

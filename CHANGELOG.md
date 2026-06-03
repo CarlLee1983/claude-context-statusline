@@ -10,6 +10,12 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- 原生 App 安裝腳本與開機啟動：`macos/AIUsageMonitor/Scripts/install-app.sh`（build → 關舊版 →
+  複製到 `/Applications` → 啟動，可用 `APP_INSTALL_DIR` 覆寫）；選單新增 **Launch at Login** 開關，
+  以原生 `SMAppService` 註冊登入項目。
+  Native app installer + login launch: `Scripts/install-app.sh` (build → quit → copy to
+  `/Applications` → open, `APP_INSTALL_DIR` override) plus a **Launch at Login** menu toggle backed
+  by the native `SMAppService` API.
 - SwiftBar 外掛一鍵安裝腳本（`swiftbar/install.sh`）：自動讀 SwiftBar 偏好的 plugin 目錄、
   symlink 外掛、`chmod +x` 並刷新；支援以位置參數 / `SWIFTBAR_PLUGIN_DIR` 覆寫目錄、
   `SWIFTBAR_INSTALL_COPY=1` 改用複製。

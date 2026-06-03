@@ -10,7 +10,7 @@
 | 工具 | 顯示位置 | 監看對象 | 相依 | 安裝 |
 |------|----------|----------|------|------|
 | [**ctx-statusline**](#1-context-狀態列ctx-statuslinepy) | Claude Code 狀態列 | 目前 session 的 **context window** 用量 | 系統 `python3`，零相依 | `./install.sh` |
-| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
+| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `./Scripts/install-app.sh` |
 | [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | `./swiftbar/install.sh` |
 
 > 兩類資料不同：**ctx-statusline** 看的是「單一 session 把 context window 用掉多少」；
@@ -95,9 +95,10 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 
 ```bash
 cd macos/AIUsageMonitor
-./Scripts/build-app.sh
-open .build/AIUsageMonitor.app
+./Scripts/install-app.sh          # build + 安裝到 /Applications，並啟動
 ```
+
+裝好後點選單列圖示 → 勾 **Launch at Login** 即可開機自動啟動（原生 `SMAppService`）。
 
 ---
 

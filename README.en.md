@@ -11,7 +11,7 @@ in the macOS menu bar: a native menu bar app and a SwiftBar plugin.
 | Tool | Where it shows | What it watches | Dependencies | Install |
 |------|----------------|-----------------|--------------|---------|
 | [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `./install.sh` |
-| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
+| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/install-app.sh` |
 | [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | `./swiftbar/install.sh` |
 
 > The two kinds of data differ: **ctx-statusline** shows "how much of a single session's
@@ -98,9 +98,10 @@ For full build, architecture, and troubleshooting notes see **[macos/AIUsageMoni
 
 ```bash
 cd macos/AIUsageMonitor
-./Scripts/build-app.sh
-open .build/AIUsageMonitor.app
+./Scripts/install-app.sh          # build + install into /Applications, then launch
 ```
+
+Then click the menu bar icon → check **Launch at Login** to start at login (native `SMAppService`).
 
 ---
 
