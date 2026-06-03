@@ -48,9 +48,9 @@ public enum RemainingQuotaPresenter {
         return snapshot.isAvailable ? "No quota data available" : "Unavailable"
     }
 
-    public static func detailTitle(for window: UsageWindow) -> String {
+    public static func detailTitle(for window: UsageWindow, now: Date = .now) -> String {
         let remaining = remainingPercent(for: window)
-        let resetText = window.resetAt.map { " · reset \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
+        let resetText = window.resetAt.map { " · reset \(resetLabel(for: $0, now: now))" } ?? ""
 
         switch window.kind {
         case .used:
@@ -58,5 +58,15 @@ public enum RemainingQuotaPresenter {
         case .available:
             return "\(window.label): \(remaining)% remaining · available\(resetText)"
         }
+    }
+
+    /// Formats a reset instant for the dropdown: time only when it falls on the
+    /// current day, otherwise prefixed with the date (e.g. a 7d window that
+    /// resets days later would be ambiguous as a bare time).
+    private static func resetLabel(for resetAt: Date, now: Date) -> String {
+        if Calendar.current.isDate(resetAt, inSameDayAs: now) {
+            return resetAt.formatted(date: .omitted, time: .shortened)
+        }
+        return resetAt.formatted(date: .abbreviated, time: .shortened)
     }
 }

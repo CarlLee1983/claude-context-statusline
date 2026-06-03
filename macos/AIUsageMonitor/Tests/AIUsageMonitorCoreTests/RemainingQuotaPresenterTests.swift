@@ -91,13 +91,27 @@ struct RemainingQuotaPresenterTests {
         let used = UsageWindow(label: "5h", percent: 3, kind: .used, resetAt: reset)
         let available = UsageWindow(label: "Gemini 3.5 Flash", percent: 75, kind: .available)
 
+        // Same-day reset: time only, no date.
         #expect(
-            RemainingQuotaPresenter.detailTitle(for: used) ==
+            RemainingQuotaPresenter.detailTitle(for: used, now: reset) ==
                 "5h: 97% remaining · used 3% · reset \(reset.formatted(date: .omitted, time: .shortened))"
         )
         #expect(
-            RemainingQuotaPresenter.detailTitle(for: available) ==
+            RemainingQuotaPresenter.detailTitle(for: available, now: reset) ==
                 "Gemini 3.5 Flash: 75% remaining · available"
+        )
+    }
+
+    @Test("includes the date when the reset is not on the current day")
+    func dropdownDetailsAddDateForNonCurrentDayReset() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let used = UsageWindow(label: "7d", percent: 13, kind: .used, resetAt: reset)
+        // `now` is 10 days before the reset — a different calendar day in any tz.
+        let now = reset.addingTimeInterval(-10 * 86_400)
+
+        #expect(
+            RemainingQuotaPresenter.detailTitle(for: used, now: now) ==
+                "7d: 87% remaining · used 13% · reset \(reset.formatted(date: .abbreviated, time: .shortened))"
         )
     }
 }
