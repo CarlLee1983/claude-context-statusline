@@ -125,9 +125,10 @@ enum StatusMenuImageRenderer {
         triangle.line(to: NSPoint(x: rect.maxX - inset, y: rect.minY + inset))
         triangle.close()
         triangle.lineJoinStyle = .round
-        // Dark outline first so the badge reads against any icon, then fill.
-        NSColor.black.withAlphaComponent(0.55).setStroke()
-        triangle.lineWidth = rect.width * 0.22
+        // White ring first so the badge reads against any icon, then fill
+        // (matches the critical badge treatment).
+        NSColor.white.withAlphaComponent(0.92).setStroke()
+        triangle.lineWidth = rect.width * 0.24
         triangle.stroke()
         NSColor(calibratedRed: 255 / 255, green: 204 / 255, blue: 0 / 255, alpha: 1).setFill()
         triangle.fill()

@@ -77,11 +77,11 @@ struct RemainingQuotaPresenterTests {
         // critical: <= 10
         #expect(RemainingQuotaPresenter.tier(forRemaining: 0) == .critical)
         #expect(RemainingQuotaPresenter.tier(forRemaining: 10) == .critical)
-        // warn: 11...30
+        // warn: 11...40
         #expect(RemainingQuotaPresenter.tier(forRemaining: 11) == .warn)
-        #expect(RemainingQuotaPresenter.tier(forRemaining: 30) == .warn)
-        // good: > 30
-        #expect(RemainingQuotaPresenter.tier(forRemaining: 31) == .good)
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 40) == .warn)
+        // good: > 40
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 41) == .good)
         #expect(RemainingQuotaPresenter.tier(forRemaining: 100) == .good)
     }
 

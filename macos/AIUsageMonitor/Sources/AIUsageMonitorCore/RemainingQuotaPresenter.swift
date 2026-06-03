@@ -8,12 +8,11 @@ public enum RemainingTier: Equatable, Sendable {
 }
 
 public enum RemainingQuotaPresenter {
-    /// Map a remaining percent (0...100) to a status tier using the repository
-    /// convention (mirrors WARN_PCT=70 / CRIT_PCT=90 from the SwiftBar plugin,
-    /// expressed as remaining): <= 10 critical, <= 30 warn, otherwise good.
+    /// Map a remaining percent (0...100) to a status tier: <= 10 critical,
+    /// <= 40 warn (warns once usage passes 60%), otherwise good.
     public static func tier(forRemaining remaining: Int) -> RemainingTier {
         if remaining <= 10 { return .critical }
-        if remaining <= 30 { return .warn }
+        if remaining <= 40 { return .warn }
         return .good
     }
 
