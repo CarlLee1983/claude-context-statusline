@@ -5,3 +5,7 @@ __pycache__/
 # 工具狀態與暫存實驗（不進版控）/ tooling state & scratch experiments
 .superpowers/
 experiments/
+
+# Swift build 與 App 執行期快取 / Swift build + app runtime cache
+.build/
+macos/AIUsageMonitor/cache/

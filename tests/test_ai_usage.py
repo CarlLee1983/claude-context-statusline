@@ -72,6 +72,32 @@ class AntigravityProviderTest(unittest.TestCase):
             ],
         )
 
+    def test_antigravity_usage_windows_carry_refresh_countdown_as_reset(self):
+        usage_text = """
+        └ Model Quota
+
+          Gemini 3.5 Flash (Medium)
+          ███████████ ███████████ 80%
+          80% remaining · Refreshes in 2h 46m
+
+          Claude Opus 4.6 (Thinking)
+          ███████████ ███████████ 100%
+          Quota available
+        """
+        now_ms = 1_000_000_000_000
+
+        rec = ai_usage.provider_antigravity(
+            accounts_path="/no/such/file.json", now_ms=now_ms, usage_text=usage_text
+        )
+
+        windows = {w["label"]: w for w in rec["windows"]}
+        self.assertAlmostEqual(
+            windows["Gemini 3.5 Flash (Medium)"]["reset"],
+            now_ms / 1000 + 2 * 3600 + 46 * 60,
+        )
+        # A full window ("Quota available") has no countdown -> no reset key.
+        self.assertNotIn("reset", windows["Claude Opus 4.6 (Thinking)"])
+
     def test_antigravity_provider_ignores_expired_limits_and_marks_account_ready(self):
         path = self._accounts_file({
             "accounts": [{"email": "user@example.com", "rateLimitResetTimes": {"claude": 1000}}]

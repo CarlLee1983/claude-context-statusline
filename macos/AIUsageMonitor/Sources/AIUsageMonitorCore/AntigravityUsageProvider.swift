@@ -42,7 +42,7 @@ public struct AntigravityUsageProvider: Sendable {
         let capture = captureText
         let text = await Task.detached(priority: .utility) { capture() }.value
         if let text {
-            let windows = AntigravityUsageParser.parse(text)
+            let windows = AntigravityUsageParser.parse(text, now: now())
             if !windows.isEmpty {
                 return ProviderSnapshot(
                     name: "Antigravity", shortName: "AG", plan: "agy /usage", windows: windows

@@ -61,6 +61,7 @@ Sources/
 │   ├── AIUsageMonitorApp.swift        # App 進入點
 │   ├── StatusMenuController.swift     # NSStatusItem、選單、自動刷新、Launch at Login
 │   ├── StatusMenuImageRenderer.swift  # 選單列圖示繪製（剩餘 % + 狀態角標）
+│   ├── ClaudeLogo.swift               # Claude 官方品牌 starburst（SVG path，與 SwiftBar 一致）
 │   └── AntigravityLogo.swift          # Antigravity 官方品牌 logo（base64，與 SwiftBar 一致）
 └── AIUsageMonitorCore/         # 純邏輯函式庫（可單元測試）
     ├── UsageModels.swift              # 正規化用量資料模型
@@ -75,6 +76,7 @@ Sources/
     ├── AntigravityUsageTextCapture.swift # PTY 驅動 agy /usage 取面板文字（thin I/O 邊界）
     ├── AntigravityUsageParser.swift   # 解析 agy /usage 面板（去 ANSI → 可用 quota 視窗）
     ├── AntigravityAccountsParser.swift # 解析帳號檔 cooldown（pure）
+    ├── SVGPathParser.swift            # 解析 SVG path（品牌 starburst → segments，pure）
     └── RemainingQuotaPresenter.swift  # 由「剩餘」額度決定顯示文字與狀態分級
 ```
 

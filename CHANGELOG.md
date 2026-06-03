@@ -54,6 +54,13 @@ All notable changes are documented here, following
   Type hints and bilingual docstrings.
 
 ### Changed 變更
+- 原生 App 的 Claude 選單列圖示改用官方品牌 starburst（解析與 SwiftBar 外掛相同的 `CLAUDE_PATH`
+  SVG 路徑，填暖橘 `(217,115,79)`），取代先前以八角星近似的程序化火花。新增可測試的純
+  `SVGPathParser`（Core）+ `ClaudeLogo`（App）。
+  Native app's Claude menu-bar icon now renders the official brand starburst (parsing the same
+  `CLAUDE_PATH` SVG as the SwiftBar plugin, filled brand orange `(217,115,79)`), replacing the
+  approximate 8-point procedural star. Adds a unit-tested pure `SVGPathParser` (Core) + `ClaudeLogo`
+  (App).
 - 原生 App 的 Antigravity 選單列圖示改用官方品牌 logo（彩色漸層拱形，與 SwiftBar 外掛同一張
   base64 PNG），取代先前手繪的拱形近似。
   Native app's Antigravity menu-bar icon now uses the official brand logo (the same base64 PNG as
@@ -62,6 +69,15 @@ All notable changes are documented here, following
   Hardened installer/uninstaller (preflight checks, invalid-JSON tolerance, backup paths).
 
 ### Fixed 修正
+- Antigravity `agy /usage` 面板的「Refreshes in 2h 46m」倒數先前被整行丟棄，導致未滿額視窗
+  在 dropdown 看不到刷新時間；現在解析倒數並換算成絕對 `resetAt`，選單會顯示刷新時間
+  （滿額顯示 `Quota available` 仍無時間）。原生 App（`AntigravityUsageParser`）與 SwiftBar
+  外掛（`_parse_antigravity_usage`）同步修正。
+  The Antigravity `agy /usage` panel's "Refreshes in 2h 46m" countdown was being dropped, so
+  partially-used windows showed no refresh time in the dropdown; it's now parsed into an absolute
+  `resetAt`, surfacing the reset time in the menu (full windows still read `Quota available`).
+  Fixed in both the native app (`AntigravityUsageParser`) and the SwiftBar plugin
+  (`_parse_antigravity_usage`).
 - `AntigravityUsageParser` 的 ANSI 去除實際無效（raw string `\u{001B}` 不被 ICU regex 認得），
   導致真實 `agy /usage` 輸出夾帶逸出碼；改用真實 ESC byte 後可正確解析。
   `AntigravityUsageParser` ANSI stripping was a no-op (ICU doesn't read the raw-string

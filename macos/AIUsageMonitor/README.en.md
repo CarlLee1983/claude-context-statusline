@@ -63,6 +63,7 @@ Sources/
 │   ├── AIUsageMonitorApp.swift        # App entry point
 │   ├── StatusMenuController.swift     # NSStatusItem, menu, refresh, Launch at Login
 │   ├── StatusMenuImageRenderer.swift  # Menu bar image (remaining % + status badge)
+│   ├── ClaudeLogo.swift               # Official Claude brand starburst (SVG path, same as SwiftBar)
 │   └── AntigravityLogo.swift          # Official Antigravity brand logo (base64, same as SwiftBar)
 └── AIUsageMonitorCore/         # Pure logic library (unit-testable)
     ├── UsageModels.swift              # Normalized usage data models
@@ -77,6 +78,7 @@ Sources/
     ├── AntigravityUsageTextCapture.swift # PTY-drives agy /usage for panel text (thin I/O boundary)
     ├── AntigravityUsageParser.swift   # Parses the agy /usage panel (strip ANSI → available windows)
     ├── AntigravityAccountsParser.swift # Parses the accounts-file cooldown (pure)
+    ├── SVGPathParser.swift            # Parses SVG path data (brand starburst → segments, pure)
     └── RemainingQuotaPresenter.swift  # Turns remaining headroom into display text + status tier
 ```
 

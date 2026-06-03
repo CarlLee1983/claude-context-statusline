@@ -1,7 +1,7 @@
 import Foundation
 
 public enum AntigravityUsageParser {
-    public static func parse(_ rawText: String) -> [UsageWindow] {
+    public static func parse(_ rawText: String, now: Date = .now) -> [UsageWindow] {
         var text = rawText.replacingOccurrences(of: "\r", with: "\n")
         if let range = text.range(of: "Model Quota", options: .backwards) {
             text = String(text[range.lowerBound...])
@@ -18,11 +18,45 @@ public enum AntigravityUsageParser {
                 continue
             }
 
-            let lookahead = lines.dropFirst(index + 1).prefix(3)
+            let lookahead = Array(lines.dropFirst(index + 1).prefix(3))
             guard let percent = firstPercent(in: lookahead) else { continue }
-            windows.append(UsageWindow(label: line, percent: percent, kind: .available))
+            // The "… · Refreshes in 2h 46m" line gives a countdown for partially
+            // used windows; turn it into an absolute reset instant. Full windows
+            // show "Quota available" instead, so resetAt stays nil.
+            let resetAt = firstRefreshInterval(in: lookahead).map { now.addingTimeInterval($0) }
+            windows.append(UsageWindow(label: line, percent: percent, kind: .available, resetAt: resetAt))
         }
         return windows
+    }
+
+    /// Parses an Antigravity "Refreshes in …" countdown into seconds. Accepts the
+    /// `1d 3h 46m 30s` token style (any subset, in any order); returns nil when no
+    /// countdown is present (e.g. a "Quota available" line).
+    private static func firstRefreshInterval<S: Sequence>(in lines: S) -> TimeInterval?
+    where S.Element == String {
+        for line in lines {
+            guard let range = line.range(of: "Refreshes in", options: .caseInsensitive) else { continue }
+            let tail = line[range.upperBound...]
+            let units: [(suffix: String, seconds: Double)] = [
+                ("d", 86_400), ("h", 3_600), ("m", 60), ("s", 1),
+            ]
+            var total: TimeInterval = 0
+            var matched = false
+            for (suffix, seconds) in units {
+                let pattern = "(\\d+(?:\\.\\d+)?)\\s*" + suffix + "\\b"
+                if let match = tail.range(of: pattern, options: .regularExpression) {
+                    let number = tail[match].replacingOccurrences(
+                        of: "[^0-9.]", with: "", options: .regularExpression
+                    )
+                    if let value = Double(number) {
+                        total += value * seconds
+                        matched = true
+                    }
+                }
+            }
+            if matched { return total }
+        }
+        return nil
     }
 
     private static func shouldSkip(_ line: String) -> Bool {

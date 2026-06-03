@@ -65,7 +65,7 @@ enum StatusMenuImageRenderer {
         for (index, entry) in entries.enumerated() {
             let chipWidth = chipWidths[index]
             let chipRect = NSRect(x: x, y: 0, width: chipWidth, height: chipHeight)
-            drawChipBackground(in: chipRect)
+            drawChipBackground(in: chipRect, remaining: entry.remaining)
 
             let iconRect = NSRect(
                 x: x + horizontalPadding,
@@ -171,10 +171,28 @@ enum StatusMenuImageRenderer {
         )).fill()
     }
 
-    private static func drawChipBackground(in rect: NSRect) {
+    private static func drawChipBackground(in rect: NSRect, remaining: Int) {
         let path = NSBezierPath(roundedRect: rect, xRadius: rect.height / 2, yRadius: rect.height / 2)
-        NSColor.white.withAlphaComponent(0.17).setFill()
-        path.fill()
+        
+        if let context = NSGraphicsContext.current {
+            context.saveGraphicsState()
+            path.addClip()
+            
+            // 1. Unfilled background (10% opacity)
+            NSColor.white.withAlphaComponent(0.10).setFill()
+            path.fill()
+            
+            // 2. Remaining progress (24% opacity)
+            let progressWidth = rect.width * CGFloat(remaining) / 100.0
+            let progressRect = NSRect(x: rect.minX, y: rect.minY, width: progressWidth, height: rect.height)
+            NSColor.white.withAlphaComponent(0.24).setFill()
+            let progressPath = NSBezierPath(rect: progressRect)
+            progressPath.fill()
+            
+            context.restoreGraphicsState()
+        }
+        
+        // 3. Border (23% opacity)
         NSColor.white.withAlphaComponent(0.23).setStroke()
         path.lineWidth = 1
         path.stroke()
@@ -193,20 +211,11 @@ enum StatusMenuImageRenderer {
         }
     }
 
+    /// Draw the official Claude starburst (matches the SwiftBar plugin's brand
+    /// path) filled in brand orange, instead of an approximate procedural star.
     private static func drawClaudeSpark(in rect: NSRect) {
-        NSColor(calibratedRed: 0.85, green: 0.45, blue: 0.31, alpha: 1).setFill()
-        let center = NSPoint(x: rect.midX, y: rect.midY)
-        let longRadius = rect.width * 0.48
-        let shortRadius = rect.width * 0.16
-        let path = NSBezierPath()
-        for index in 0..<8 {
-            let angle = CGFloat(index) * .pi / 4 - .pi / 2
-            let radius = index.isMultiple(of: 2) ? longRadius : shortRadius
-            let point = NSPoint(x: center.x + cos(angle) * radius, y: center.y + sin(angle) * radius)
-            if index == 0 { path.move(to: point) } else { path.line(to: point) }
-        }
-        path.close()
-        path.fill()
+        ClaudeLogo.brandColor.setFill()
+        ClaudeLogo.bezierPath(in: rect).fill()
     }
 
     private static func drawOpenAIMark(in rect: NSRect) {

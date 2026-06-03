@@ -434,12 +434,31 @@ def _strip_ansi(text):
     return ANSI_RE.sub("", text).replace("\r", "\n")
 
 
-def _parse_antigravity_usage(text):
+_REFRESH_UNITS = {"d": 86400, "h": 3600, "m": 60, "s": 1}
+
+
+def _parse_refresh_seconds(text):
+    """從 "Refreshes in 2h 46m" 取倒數秒數（支援 d/h/m/s 任意子集）；無倒數回 None。"""
+    match = re.search(r"Refreshes in\s+(.+)", text, re.IGNORECASE)
+    if not match:
+        return None
+    total = 0.0
+    matched = False
+    for num, unit in re.findall(r"(\d+(?:\.\d+)?)\s*([dhms])\b", match.group(1)):
+        total += float(num) * _REFRESH_UNITS[unit]
+        matched = True
+    return total if matched else None
+
+
+def _parse_antigravity_usage(text, now=None):
     """解析 /usage 面板，回傳 SwiftBar windows。
 
     /usage 顯示的是 quota available 百分比。為了不讓 100% available
     被轉成 0% 而看起來像沒有 bar，Antigravity 視窗保留 available 語義。
+    未滿額的視窗面板會印 "… · Refreshes in 2h 46m" 倒數，換算成絕對 reset
+    時間戳塞進 window（滿額顯示 "Quota available"，故無 reset）。
     """
+    now = time.time() if now is None else now
     clean = _strip_ansi(text)
     if "Model Quota" in clean:
         clean = clean[clean.rfind("Model Quota"):]
@@ -455,18 +474,26 @@ def _parse_antigravity_usage(text):
         if "%" in line:
             continue
         pct = None
+        reset = None
         for nxt in lines[i + 1:i + 4]:
-            match = re.search(r"(\d+(?:\.\d+)?)\s*%", nxt)
-            if match:
-                pct = float(match.group(1))
-                break
+            if pct is None:
+                match = re.search(r"(\d+(?:\.\d+)?)\s*%", nxt)
+                if match:
+                    pct = float(match.group(1))
+            if reset is None:
+                secs = _parse_refresh_seconds(nxt)
+                if secs is not None:
+                    reset = now + secs
         if pct is None:
             continue
-        windows.append({
+        window = {
             "label": line,
             "pct": max(0.0, min(100.0, pct)),
             "kind": "available",
-        })
+        }
+        if reset is not None:
+            window["reset"] = reset
+        windows.append(window)
     return windows
 
 
@@ -563,7 +590,7 @@ def provider_antigravity(accounts_path=ANTIGRAVITY_ACCOUNTS_PATH, now_ms=None, u
     if usage_text is None and accounts_path == ANTIGRAVITY_ACCOUNTS_PATH:
         usage_text = _capture_antigravity_usage_text()
     if usage_text:
-        windows = _parse_antigravity_usage(usage_text)
+        windows = _parse_antigravity_usage(usage_text, now=now_ms / 1000)
         if windows:
             rec["ok"] = True
             rec["plan"] = "agy /usage"
@@ -849,9 +876,33 @@ def _menubar_image(records):
 
     x = 0
     for r, text, num_w, chip_w in chips:
-        # 固定白色半透明膠囊(對齊原生 chip:fill .17 / stroke .23)
+        # 建立圓角膠囊遮罩，確保進度條邊緣不會溢出膠囊
+        mask_im = Image.new("L", (chip_w, H), 0)
+        mask_draw = ImageDraw.Draw(mask_im)
+        mask_draw.rounded_rectangle((0, 0, chip_w - 1, H - 1), radius=H / 2, fill=255)
+
+        # 建立臨時膠囊畫布繪製背景進度條
+        chip_im = Image.new("RGBA", (chip_w, H), (0, 0, 0, 0))
+        chip_draw = ImageDraw.Draw(chip_im)
+
+        # 1. 未填充底色 (10% 不透明度)
+        chip_draw.rectangle((0, 0, chip_w, H), fill=(255, 255, 255, 25))
+
+        # 2. 剩餘進度填充 (24% 不透明度)
+        rec_windows = _windows(r) if r["ok"] else []
+        remaining = _remaining_pct(rec_windows[0]) if rec_windows else 0
+        progress_w = int(round(chip_w * remaining / 100.0))
+        if progress_w > 0:
+            chip_draw.rectangle((0, 0, progress_w, H), fill=(255, 255, 255, 61))
+
+        # 將進度背景透過遮罩裁剪成圓角，然後貼至主 canvas
+        transparent = Image.new("RGBA", (chip_w, H), (0, 0, 0, 0))
+        chip_masked = Image.composite(chip_im, transparent, mask_im)
+        canvas.alpha_composite(chip_masked, (x, 0))
+
+        # 3. 繪製半透明白色框線 (維持原本 outline: 23% 不透明度)
         d.rounded_rectangle((x, 0, x + chip_w - 1, H - 1), radius=H / 2,
-                            fill=(255, 255, 255, 43), outline=(255, 255, 255, 59),
+                            fill=None, outline=(255, 255, 255, 59),
                             width=max(1, s // 2))
 
         icon_left = x + pad
