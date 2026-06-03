@@ -61,8 +61,9 @@ can toggle it). Installing to `/Applications` first gives a stable path so the r
 Sources/
 ├── AIUsageMonitorApp/          # Executable target (AppKit shell)
 │   ├── AIUsageMonitorApp.swift        # App entry point
-│   ├── StatusMenuController.swift     # NSStatusItem, menu, refresh scheduling
-│   └── StatusMenuImageRenderer.swift  # Menu bar image (remaining % + status badge)
+│   ├── StatusMenuController.swift     # NSStatusItem, menu, refresh, Launch at Login
+│   ├── StatusMenuImageRenderer.swift  # Menu bar image (remaining % + status badge)
+│   └── AntigravityLogo.swift          # Official Antigravity brand logo (base64, same as SwiftBar)
 └── AIUsageMonitorCore/         # Pure logic library (unit-testable)
     ├── UsageModels.swift              # Normalized usage data models
     ├── UsageSnapshotProvider.swift    # Provider protocol

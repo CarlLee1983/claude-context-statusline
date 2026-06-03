@@ -187,7 +187,7 @@ enum StatusMenuImageRenderer {
         } else if lowercased.contains("codex") {
             drawOpenAIMark(in: rect)
         } else if lowercased.contains("antigravity") {
-            drawAntigravityArch(in: rect)
+            drawAntigravityLogo(in: rect)
         } else {
             drawGenericDot(in: rect)
         }
@@ -225,6 +225,30 @@ enum StatusMenuImageRenderer {
             spoke.lineWidth = 1.2
             spoke.stroke()
         }
+    }
+
+    /// Draw the official Antigravity brand logo (matches the SwiftBar plugin),
+    /// scaled to fit the icon rect with aspect ratio preserved and centered.
+    /// Falls back to the drawn arch if the embedded PNG can't be decoded.
+    private static func drawAntigravityLogo(in rect: NSRect) {
+        guard
+            let data = Data(base64Encoded: AntigravityLogo.base64),
+            let image = NSImage(data: data),
+            image.size.width > 0, image.size.height > 0
+        else {
+            drawAntigravityArch(in: rect)
+            return
+        }
+        let scale = min(rect.width / image.size.width, rect.height / image.size.height)
+        let width = image.size.width * scale
+        let height = image.size.height * scale
+        let fitted = NSRect(
+            x: rect.midX - width / 2,
+            y: rect.midY - height / 2,
+            width: width,
+            height: height
+        )
+        image.draw(in: fitted, from: .zero, operation: .sourceOver, fraction: 1)
     }
 
     private static func drawAntigravityArch(in rect: NSRect) {

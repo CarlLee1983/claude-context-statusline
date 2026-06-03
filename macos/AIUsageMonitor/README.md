@@ -59,8 +59,9 @@ APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
 Sources/
 ├── AIUsageMonitorApp/          # 可執行目標（AppKit 外殼）
 │   ├── AIUsageMonitorApp.swift        # App 進入點
-│   ├── StatusMenuController.swift     # NSStatusItem、選單、自動刷新排程
-│   └── StatusMenuImageRenderer.swift  # 選單列圖示繪製（剩餘 % + 狀態角標）
+│   ├── StatusMenuController.swift     # NSStatusItem、選單、自動刷新、Launch at Login
+│   ├── StatusMenuImageRenderer.swift  # 選單列圖示繪製（剩餘 % + 狀態角標）
+│   └── AntigravityLogo.swift          # Antigravity 官方品牌 logo（base64，與 SwiftBar 一致）
 └── AIUsageMonitorCore/         # 純邏輯函式庫（可單元測試）
     ├── UsageModels.swift              # 正規化用量資料模型
     ├── UsageSnapshotProvider.swift    # provider 介面

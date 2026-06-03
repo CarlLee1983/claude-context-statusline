@@ -54,6 +54,10 @@ All notable changes are documented here, following
   Type hints and bilingual docstrings.
 
 ### Changed 變更
+- 原生 App 的 Antigravity 選單列圖示改用官方品牌 logo（彩色漸層拱形，與 SwiftBar 外掛同一張
+  base64 PNG），取代先前手繪的拱形近似。
+  Native app's Antigravity menu-bar icon now uses the official brand logo (the same base64 PNG as
+  the SwiftBar plugin), replacing the hand-drawn arch approximation.
 - 安裝/移除腳本強化前置檢查與錯誤處理（檢查 `python3` 與來源檔、容忍非法 JSON、印出備份路徑）。
   Hardened installer/uninstaller (preflight checks, invalid-JSON tolerance, backup paths).
 
