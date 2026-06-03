@@ -1,0 +1,48 @@
+#!/usr/bin/env python3
+"""bell-setup — 把「完成提示」設定併入/移出 Claude / Codex / Ghostty 三邊設定。
+
+純標準庫、零相依。每個 apply_/remove_ 都是純函式（不改輸入、回傳新值）；
+薄 I/O 負責備份與寫回。honors CLAUDE_CONFIG_DIR / CODEX_HOME / XDG_CONFIG_HOME。
+"""
+import json
+import os
+import re
+import shutil
+import sys
+import time
+
+MARKER = "# added by claude-context-statusline bell/install.sh"
+
+
+# ---- Claude Code: settings.json 的 Stop hook ------------------------------
+def _stop_has_command(stop, command):
+    return any(h.get("command") == command
+               for matcher in stop for h in matcher.get("hooks", []))
+
+
+def apply_stop_hook(data, command):
+    """回傳加入我們 Stop hook 的新 dict（以 command 比對，冪等；不改輸入）。"""
+    hooks = dict(data.get("hooks", {}))
+    stop = list(hooks.get("Stop", []))
+    if _stop_has_command(stop, command):
+        return data
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    hooks = {**hooks, "Stop": stop + [entry]}
+    return {**data, "hooks": hooks}
+
+
+def remove_stop_hook(data, command):
+    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher。"""
+    hooks = dict(data.get("hooks", {}))
+    stop = hooks.get("Stop")
+    if not stop:
+        return data, False
+    kept = [m for m in stop
+            if not any(h.get("command") == command for h in m.get("hooks", []))]
+    if len(kept) == len(stop):
+        return data, False
+    if kept:
+        hooks = {**hooks, "Stop": kept}
+    else:
+        hooks = {k: v for k, v in hooks.items() if k != "Stop"}
+    return {**data, "hooks": hooks}, True
