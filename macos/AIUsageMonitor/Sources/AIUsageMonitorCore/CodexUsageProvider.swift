@@ -34,14 +34,22 @@ public struct CodexUsageProvider: Sendable {
         process.standardError = FileHandle.nullDevice
         do { try process.run() } catch { return nil }
 
+        // Deterministically reap the child on every exit path (no lazy zombie).
+        defer {
+            if process.isRunning { process.terminate() }
+            process.waitUntilExit()
+        }
+
         // Watchdog: guarantee termination so availableData reaches EOF.
         let watchdog = DispatchWorkItem { if process.isRunning { process.terminate() } }
         DispatchQueue.global().asyncAfter(deadline: .now() + 8, execute: watchdog)
 
         func send(_ object: [String: Any]) {
             guard let data = try? JSONSerialization.data(withJSONObject: object) else { return }
-            inPipe.fileHandleForWriting.write(data)
-            inPipe.fileHandleForWriting.write(Data("\n".utf8))
+            // Use the throwing API: write(_:) raises an uncatchable ObjC exception
+            // on a broken pipe, which would violate the never-crash invariant.
+            try? inPipe.fileHandleForWriting.write(contentsOf: data)
+            try? inPipe.fileHandleForWriting.write(contentsOf: Data("\n".utf8))
         }
 
         send([
@@ -76,7 +84,6 @@ public struct CodexUsageProvider: Sendable {
         }
 
         watchdog.cancel()
-        if process.isRunning { process.terminate() }
         return result
     }
 }
