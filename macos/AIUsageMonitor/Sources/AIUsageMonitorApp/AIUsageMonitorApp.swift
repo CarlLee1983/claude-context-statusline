@@ -8,7 +8,7 @@ struct AIUsageMonitorMain {
         let app = NSApplication.shared
         app.setActivationPolicy(.accessory)
 
-        Runtime.controller = StatusMenuController(provider: DemoUsageSnapshotProvider())
+        Runtime.controller = StatusMenuController(provider: LiveUsageSnapshotProvider())
         Runtime.controller?.start()
 
         app.run()
