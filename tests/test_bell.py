@@ -57,6 +57,7 @@ class NotifyShTest(unittest.TestCase):
             capture_output=True, timeout=10,
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stderr, b"")
 
 
 class ClaudeStopHookTest(unittest.TestCase):

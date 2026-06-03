@@ -16,5 +16,5 @@ if [ "$src" = "codex" ]; then
 fi
 
 tty_out="${BELL_TTY:-/dev/tty}"
-printf '\a' > "$tty_out" 2>/dev/null || true
+{ printf '\a' > "$tty_out"; } 2>/dev/null || true
 exit 0
