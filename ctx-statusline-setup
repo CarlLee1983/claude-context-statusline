@@ -80,7 +80,7 @@ def run(settings_path, command=None, remove=False):
 
 def default_command():
     """預設 command：/usr/bin/python3 <與本腳本同目錄的 ctx-statusline>。"""
-    here = os.path.dirname(os.path.realpath(__file__))
+    here = os.path.dirname(os.path.abspath(__file__))
     return f"/usr/bin/python3 {os.path.join(here, 'ctx-statusline')}"
 
 

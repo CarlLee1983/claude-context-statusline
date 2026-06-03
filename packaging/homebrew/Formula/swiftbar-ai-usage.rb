@@ -15,7 +15,7 @@ class SwiftbarAiUsage < Formula
       Symlink it into your SwiftBar plugin folder, then refresh SwiftBar:
         ln -sf "#{opt_libexec}/ai-usage.60s.py" \\
           "$HOME/Library/Application Support/SwiftBar/Plugins/ai-usage.60s.py"
-      Optional: `pip3 install Pillow` for capsule icons (falls back to text otherwise).
+      Optional: `/usr/bin/python3 -m pip install Pillow` for capsule icons (falls back to text otherwise).
     EOS
   end
 
