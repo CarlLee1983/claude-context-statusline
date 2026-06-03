@@ -46,3 +46,52 @@ def remove_stop_hook(data, command):
     else:
         hooks = {k: v for k, v in hooks.items() if k != "Stop"}
     return {**data, "hooks": hooks}, True
+
+
+# ---- Codex: config.toml 的 notify（文字行掃描，不解析 TOML）-----------------
+_NOTIFY_RE = re.compile(r"^\s*notify\s*=")
+
+
+def codex_has_toplevel_notify(text):
+    """是否已有頂層 notify（第一個 [table] 之前出現 notify =）。"""
+    for line in text.splitlines():
+        s = line.lstrip()
+        if s.startswith("["):          # table 或 array-of-tables 表頭
+            return False
+        if _NOTIFY_RE.match(line):
+            return True
+    return False
+
+
+def apply_codex_notify(text, command_args):
+    """回傳 (新 text, 是否變更)。無頂層 notify 時於檔首 prepend 帶 MARKER 的區段。"""
+    if codex_has_toplevel_notify(text):
+        return text, False
+    arr = ", ".join(json.dumps(a) for a in command_args)
+    block = f"{MARKER}\nnotify = [{arr}]\n"
+    if text:
+        block += "\n"  # 一律補一個空行分隔；remove_codex_notify 會剝掉這一個空行
+    return block + text, True
+
+
+def remove_codex_notify(text):
+    """移除我們以 MARKER 標記的 notify 區段（MARKER 行 + 其後 notify 行 + 一個空行）。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if lines[i].strip() == MARKER:
+            removed = True
+            i += 1
+            if i < len(lines) and _NOTIFY_RE.match(lines[i]):
+                i += 1
+            if i < len(lines) and lines[i].strip() == "":
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True

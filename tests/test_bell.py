@@ -100,5 +100,53 @@ class ClaudeStopHookTest(unittest.TestCase):
         self.assertEqual(out, {})
 
 
+class CodexNotifyTest(unittest.TestCase):
+    ARGS = ["/abs/bell/notify.sh", "codex"]
+
+    def test_detect_toplevel_notify_present(self):
+        self.assertTrue(bell_setup.codex_has_toplevel_notify(
+            'model = "o3"\nnotify = ["x"]\n[tools]\n'))
+
+    def test_notify_inside_table_is_not_toplevel(self):
+        self.assertFalse(bell_setup.codex_has_toplevel_notify(
+            '[some]\nnotify = ["x"]\n'))
+
+    def test_apply_prepends_when_absent(self):
+        text = '[mcp_servers.foo]\ncommand = "x"\n'
+        out, changed = bell_setup.apply_codex_notify(text, self.ARGS)
+        self.assertTrue(changed)
+        self.assertTrue(out.startswith(bell_setup.MARKER))
+        self.assertIn('notify = ["/abs/bell/notify.sh", "codex"]', out)
+        self.assertIn('[mcp_servers.foo]', out)  # 原內容保留
+        # notify 必須在第一個 table 之前
+        self.assertLess(out.index("notify ="), out.index("[mcp_servers.foo]"))
+
+    def test_apply_noop_when_present(self):
+        text = 'notify = ["existing"]\n[t]\n'
+        out, changed = bell_setup.apply_codex_notify(text, self.ARGS)
+        self.assertFalse(changed)
+        self.assertEqual(out, text)
+
+    def test_remove_strips_our_block_only(self):
+        text = '[mcp_servers.foo]\ncommand = "x"\n'
+        applied, _ = bell_setup.apply_codex_notify(text, self.ARGS)
+        out, removed = bell_setup.remove_codex_notify(applied)
+        self.assertTrue(removed)
+        self.assertNotIn("notify =", out)
+        self.assertIn('[mcp_servers.foo]', out)
+
+    def test_remove_noop_without_marker(self):
+        out, removed = bell_setup.remove_codex_notify('notify = ["hand"]\n')
+        self.assertFalse(removed)
+        self.assertEqual(out, 'notify = ["hand"]\n')
+
+    def test_apply_remove_round_trip_newline_prefixed(self):
+        text = '\n[tools]\nfoo = 1\n'
+        applied, _ = bell_setup.apply_codex_notify(text, self.ARGS)
+        out, removed = bell_setup.remove_codex_notify(applied)
+        self.assertTrue(removed)
+        self.assertEqual(out, text)
+
+
 if __name__ == "__main__":
     unittest.main()
