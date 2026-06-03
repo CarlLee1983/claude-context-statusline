@@ -56,6 +56,11 @@ APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
   做法對齊 [SwiftBar 外掛](../../swiftbar/README.md)。
 - **原生 AppKit 選單列 UI**：每 5 分鐘自動刷新，另提供手動「Refresh」。
 
+> **刷新間隔（5 分鐘）是刻意對齊 SwiftBar 外掛的**：常數 `StatusMenuController.refreshInterval`
+> 對應外掛的 `FETCH_TTL`，兩者對 usage 端點的真實呼叫頻率相同。顯示的是 5h / 7d 速率限制視窗，
+> 5 分鐘僅約佔 5h 視窗的 1.7%，粒度已足夠，又能避開端點自身的 429 限流；要即時數字時用選單的
+> 「Refresh」。要調整就改該常數。
+
 ## 架構
 
 ```

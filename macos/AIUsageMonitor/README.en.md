@@ -55,6 +55,12 @@ can toggle it). Installing to `/Applications` first gives a stable path so the r
   that can't be captured. Mirrors the [SwiftBar plugin](../../swiftbar/README.en.md) approach.
 - **Native AppKit menu bar UI**: 5-minute auto-refresh plus a manual Refresh action.
 
+> **The 5-minute interval is deliberately aligned with the SwiftBar plugin.** The
+> `StatusMenuController.refreshInterval` constant mirrors the plugin's `FETCH_TTL`, so both hit the
+> usage endpoints at the same real cadence. The data is a 5h / 7d rate-limit window — 5 minutes is
+> only ~1.7% of the 5h window, granular enough while avoiding the endpoints' own 429 throttling. Use
+> the menu's "Refresh" for an instant number; change the constant to adjust the cadence.
+
 ## Architecture
 
 ```
