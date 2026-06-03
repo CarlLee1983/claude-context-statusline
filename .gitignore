@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# 工具狀態與暫存實驗（不進版控）/ tooling state & scratch experiments
+.superpowers/
+experiments/
