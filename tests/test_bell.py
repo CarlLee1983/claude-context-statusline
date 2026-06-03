@@ -2,7 +2,9 @@
 """bell 元件測試：notify.sh 行為 + bell-setup 設定合併。純標準庫。"""
 import importlib.machinery
 import importlib.util
+import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -179,6 +181,89 @@ class GhosttyBellTest(unittest.TestCase):
         out, removed = bell_setup.remove_ghostty_bell("bell-features = audio\n")
         self.assertFalse(removed)
         self.assertEqual(out, "bell-features = audio\n")
+
+
+class BellSetupIoTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.claude = os.path.join(self.dir, "settings.json")
+        self.codex = os.path.join(self.dir, "config.toml")
+        self.ghostty = os.path.join(self.dir, "ghostty.config")
+        self.cmd = "/abs/bell/notify.sh claude"
+        self.codex_args = ["/abs/bell/notify.sh", "codex"]
+
+    def tearDown(self):
+        shutil.rmtree(self.dir, ignore_errors=True)
+
+    def _write(self, path, text):
+        with open(path, "w") as f:
+            f.write(text)
+
+    def test_install_creates_and_backs_up(self):
+        self._write(self.claude, '{"model":"opus"}')
+        self._write(self.codex, '[t]\n')
+        self._write(self.ghostty, 'font-size = 14\n')
+        results = bell_setup.run_install(
+            self.claude, self.cmd, self.codex, self.codex_args, self.ghostty)
+        with open(self.claude) as f:
+            data = json.load(f)
+        cmds = [h["command"] for m in data["hooks"]["Stop"] for h in m["hooks"]]
+        self.assertIn(self.cmd, cmds)
+        for base in (self.claude, self.codex, self.ghostty):
+            self.assertTrue(any(f.startswith(os.path.basename(base) + ".bak.")
+                                for f in os.listdir(self.dir)))
+        self.assertEqual(len(results), 3)
+
+    def test_install_is_idempotent_no_second_change(self):
+        self._write(self.claude, "{}")
+        self._write(self.codex, "")
+        self._write(self.ghostty, "")
+        bell_setup.run_install(self.claude, self.cmd, self.codex,
+                               self.codex_args, self.ghostty)
+        with open(self.ghostty) as f:
+            before = f.read()
+        bell_setup.run_install(self.claude, self.cmd, self.codex,
+                               self.codex_args, self.ghostty)
+        with open(self.ghostty) as f:
+            self.assertEqual(f.read(), before)
+
+    def test_install_isolates_write_failure(self):
+        # Claude 路徑指向一個目錄 → 寫入必失敗，但 Codex/Ghostty 仍須照常套用
+        claude_as_dir = os.path.join(self.dir, "settings.json")
+        os.mkdir(claude_as_dir)
+        self._write(self.codex, "")
+        self._write(self.ghostty, "")
+        results = bell_setup.run_install(
+            claude_as_dir, self.cmd, self.codex, self.codex_args, self.ghostty)
+        by_target = {r["target"]: r["status"] for r in results}
+        self.assertEqual(by_target[claude_as_dir], "error")
+        self.assertEqual(by_target[self.codex], "ok")
+        self.assertEqual(by_target[self.ghostty], "ok")
+
+    def test_install_aborts_claude_on_invalid_json(self):
+        self._write(self.claude, "{ not json")
+        self._write(self.codex, "")
+        self._write(self.ghostty, "")
+        results = bell_setup.run_install(self.claude, self.cmd, self.codex,
+                                         self.codex_args, self.ghostty)
+        with open(self.claude) as f:
+            self.assertEqual(f.read(), "{ not json")
+        claude_res = [r for r in results if r["target"] == self.claude][0]
+        self.assertEqual(claude_res["status"], "error")
+
+    def test_uninstall_restores(self):
+        self._write(self.claude, "{}")
+        self._write(self.codex, "")
+        self._write(self.ghostty, "")
+        bell_setup.run_install(self.claude, self.cmd, self.codex,
+                               self.codex_args, self.ghostty)
+        bell_setup.run_uninstall(self.claude, self.cmd, self.codex, self.ghostty)
+        with open(self.claude) as f:
+            self.assertNotIn("Stop", json.load(f).get("hooks", {}))
+        with open(self.codex) as f:
+            self.assertNotIn("notify", f.read())
+        with open(self.ghostty) as f:
+            self.assertNotIn("bell-features", f.read())
 
 
 if __name__ == "__main__":
