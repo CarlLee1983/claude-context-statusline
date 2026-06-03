@@ -11,7 +11,7 @@ in the macOS menu bar: a native menu bar app and a SwiftBar plugin.
 | Tool | Where it shows | What it watches | Dependencies | Install |
 |------|----------------|-----------------|--------------|---------|
 | [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `./install.sh` |
-| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
+| [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
 | [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | Copy into SwiftBar plugins dir |
 
 > The two kinds of data differ: **ctx-statusline** shows "how much of a single session's
@@ -90,8 +90,8 @@ Restart a session to apply.
 
 ## 2. Native menu bar app (`macos/AIUsageMonitor`)
 
-A pure-Swift macOS menu bar app that natively fetches live Claude Code and Codex rate limits
-(5h / 7d), shows remaining headroom in the menu bar, and auto-refreshes every 5 minutes. No
+A pure-Swift macOS menu bar app that natively fetches live Claude Code, Codex and Antigravity rate
+limits (5h / 7d), shows remaining headroom in the menu bar, and auto-refreshes every 5 minutes. No
 Python runtime dependency, and no signing or notarization needed for local development.
 
 For full build, architecture, and troubleshooting notes see **[macos/AIUsageMonitor/README.en.md](macos/AIUsageMonitor/README.en.md)**.

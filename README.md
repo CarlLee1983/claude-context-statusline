@@ -10,7 +10,7 @@
 | 工具 | 顯示位置 | 監看對象 | 相依 | 安裝 |
 |------|----------|----------|------|------|
 | [**ctx-statusline**](#1-context-狀態列ctx-statuslinepy) | Claude Code 狀態列 | 目前 session 的 **context window** 用量 | 系統 `python3`，零相依 | `./install.sh` |
-| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
+| [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `./Scripts/build-app.sh` |
 | [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | 複製到 SwiftBar plugins 目錄 |
 
 > 兩類資料不同：**ctx-statusline** 看的是「單一 session 把 context window 用掉多少」；
@@ -88,7 +88,7 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 
 ## 2. 原生選單列 App（`macos/AIUsageMonitor`）
 
-純 Swift 的 macOS 選單列 App，原生抓取 Claude Code 與 Codex 的即時速率限制（5h / 7d），
+純 Swift 的 macOS 選單列 App，原生抓取 Claude Code、Codex 與 Antigravity 的即時速率限制（5h / 7d），
 在選單列顯示剩餘額度，每 5 分鐘自動刷新。不依賴 Python runtime，本機開發無需簽章或公證。
 
 完整建置、架構與疑難排解請見 **[macos/AIUsageMonitor/README.md](macos/AIUsageMonitor/README.md)**。

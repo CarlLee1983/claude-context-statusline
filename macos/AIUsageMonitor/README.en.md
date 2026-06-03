@@ -30,8 +30,10 @@ notarization for local development.
 
 - **Live Claude Code usage**: Keychain OAuth token → Anthropic usage endpoint, 5h / 7d windows.
 - **Live Codex usage**: `codex app-server` JSON-RPC rate limits, 5h / 7d windows.
+- **Live Antigravity usage**: drives `agy /usage` over a pseudo-TTY for per-model available quota;
+  falls back to the local `~/.config/opencode/antigravity-accounts.json` cooldown / ready state when
+  that can't be captured. Mirrors the [SwiftBar plugin](../../swiftbar/README.en.md) approach.
 - **Native AppKit menu bar UI**: 5-minute auto-refresh plus a manual Refresh action.
-- **Antigravity is temporarily removed** and will return in a later round.
 
 ## Architecture
 
@@ -50,7 +52,10 @@ Sources/
     ├── CodexUsageProvider.swift       # Codex: app-server JSON-RPC
     ├── CodexExecutableResolver.swift  # Locates the codex executable on a minimal PATH
     ├── CodexRateLimitParser.swift     # Parses the Codex rate-limit response
-    ├── AntigravityUsageParser.swift   # Antigravity parsing (not wired into the UI yet)
+    ├── AntigravityUsageProvider.swift # Antigravity: agy /usage first, accounts cooldown fallback
+    ├── AntigravityUsageTextCapture.swift # PTY-drives agy /usage for panel text (thin I/O boundary)
+    ├── AntigravityUsageParser.swift   # Parses the agy /usage panel (strip ANSI → available windows)
+    ├── AntigravityAccountsParser.swift # Parses the accounts-file cooldown (pure)
     └── RemainingQuotaPresenter.swift  # Turns remaining headroom into display text + status tier
 ```
 

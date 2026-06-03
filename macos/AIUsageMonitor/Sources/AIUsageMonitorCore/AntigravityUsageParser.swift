@@ -46,11 +46,14 @@ public enum AntigravityUsageParser {
         return nil
     }
 
+    // ESC char built via Swift escape so the literal ESC byte (not the text
+    // "\u{001B}") reaches the ICU regex engine. Covers CSI sequences (colors,
+    // erase-line), private-mode sets, and a catch-all for 2-byte escapes —
+    // mirrors the reference SwiftBar `ANSI_RE`.
+    private static let ansiPattern =
+        "\u{1B}\\[[0-?]*[ -/]*[@-~]|\u{1B}[>=][^A-Za-z]*[A-Za-z]?|\u{1B}\\\\?."
+
     private static func stripANSI(_ line: String) -> String {
-        line.replacingOccurrences(
-            of: #"\u{001B}\[[0-?]*[ -/]*[@-~]"#,
-            with: "",
-            options: .regularExpression
-        )
+        line.replacingOccurrences(of: ansiPattern, with: "", options: .regularExpression)
     }
 }

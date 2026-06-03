@@ -10,6 +10,11 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- 原生 App 接上 Antigravity provider：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota，
+  取不到時退回讀本機帳號檔 cooldown，做法對齊 SwiftBar 外掛；新增 `AntigravityUsageProvider`、
+  `AntigravityUsageTextCapture`、`AntigravityAccountsParser`，並串進 `LiveUsageSnapshotProvider`。
+  Wire Antigravity into the native app: drive `agy /usage` over a pseudo-TTY for per-model
+  available quota, falling back to the local accounts-file cooldown, mirroring the SwiftBar plugin.
 - SwiftBar 外掛（`swiftbar/ai-usage.60s.py`）：單檔 Python 在選單列顯示 Claude、Codex
   （與 Antigravity）的 5h / 7d 速率限制剩餘額度；可選 Pillow 膠囊圖示、兩段式快取退避、
   狀態色與形狀角標皆對齊原生 App。
@@ -39,6 +44,12 @@ All notable changes are documented here, following
 ### Changed 變更
 - 安裝/移除腳本強化前置檢查與錯誤處理（檢查 `python3` 與來源檔、容忍非法 JSON、印出備份路徑）。
   Hardened installer/uninstaller (preflight checks, invalid-JSON tolerance, backup paths).
+
+### Fixed 修正
+- `AntigravityUsageParser` 的 ANSI 去除實際無效（raw string `\u{001B}` 不被 ICU regex 認得），
+  導致真實 `agy /usage` 輸出夾帶逸出碼；改用真實 ESC byte 後可正確解析。
+  `AntigravityUsageParser` ANSI stripping was a no-op (ICU doesn't read the raw-string
+  `\u{001B}`); fixed to feed a real ESC byte so live `agy /usage` output parses cleanly.
 
 ## [0.1.0]
 

@@ -28,8 +28,10 @@ App 以 accessory（`LSUIElement`）形式常駐選單列，不在 Dock 顯示�
 
 - **Claude Code 即時用量**：Keychain OAuth token → Anthropic usage 端點，取 5h / 7d 視窗。
 - **Codex 即時用量**：`codex app-server` JSON-RPC rate limits，取 5h / 7d 視窗。
+- **Antigravity 即時用量**：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota；
+  取不到時退回讀本機 `~/.config/opencode/antigravity-accounts.json` 的 cooldown / ready 狀態。
+  做法對齊 [SwiftBar 外掛](../../swiftbar/README.md)。
 - **原生 AppKit 選單列 UI**：每 5 分鐘自動刷新，另提供手動「Refresh」。
-- **Antigravity 暫時移除**，將於後續版本回歸。
 
 ## 架構
 
@@ -48,7 +50,10 @@ Sources/
     ├── CodexUsageProvider.swift       # Codex：app-server JSON-RPC
     ├── CodexExecutableResolver.swift  # 在受限 PATH 下尋找 codex 執行檔
     ├── CodexRateLimitParser.swift     # 解析 Codex rate-limit 回應
-    ├── AntigravityUsageParser.swift   # Antigravity 解析（目前未接上 UI）
+    ├── AntigravityUsageProvider.swift # Antigravity：先 agy /usage、退回帳號檔 cooldown
+    ├── AntigravityUsageTextCapture.swift # PTY 驅動 agy /usage 取面板文字（thin I/O 邊界）
+    ├── AntigravityUsageParser.swift   # 解析 agy /usage 面板（去 ANSI → 可用 quota 視窗）
+    ├── AntigravityAccountsParser.swift # 解析帳號檔 cooldown（pure）
     └── RemainingQuotaPresenter.swift  # 由「剩餘」額度決定顯示文字與狀態分級
 ```
 
