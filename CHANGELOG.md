@@ -10,6 +10,18 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- 第四元件 `bell/`：AI CLI 完成提示（Ghostty 分頁標記）。
+  Claude Code Stop hook + Codex notify（過濾 `agent-turn-complete`）+ Ghostty `bell-features = title,attention`；
+  `bell/notify.sh`（BEL 發送器，永不崩潰）、`bell/bell-setup`（純函式合併邏輯）、`bell/install.sh`／`bell/uninstall.sh`
+  （三邊設定，備份、只增不刪、冪等，支援 `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `XDG_CONFIG_HOME` 覆寫）；
+  27 項新增單元測試（`tests/test_bell.py`；全套 70 項）；雙語 README（`bell/README.md` / `bell/README.en.md`）。
+  Antigravity 尚未支援，列為後續。
+  Fourth component `bell/`: AI CLI completion bell (Ghostty tab marker).
+  Claude Code Stop hook + Codex notify (filtering `agent-turn-complete`) + Ghostty `bell-features = title,attention`;
+  `bell/notify.sh` (BEL emitter, never crashes), `bell/bell-setup` (pure-function merge logic),
+  `bell/install.sh` / `bell/uninstall.sh` (three-way config: backup, additive-only, idempotent;
+  `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `XDG_CONFIG_HOME` overrides);
+  27 new unit tests (`tests/test_bell.py`; 70 total); bilingual READMEs. Antigravity support deferred.
 - Homebrew tap 一鍵安裝：`brew tap CarlLee1983/tap` 後可 `brew install` 三個元件
   （`ctx-statusline` / `ai-usage-monitor` / `swiftbar-ai-usage`）。三者皆從源碼 build，
   無需簽章/公證；安裝期間不改使用者設定，改由 `ctx-statusline-setup`、`ai-usage-monitor`

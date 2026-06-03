@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""bell-setup — 把「完成提示」設定併入/移出 Claude / Codex / Ghostty 三邊設定。
+
+純標準庫、零相依。每個 apply_/remove_ 都是純函式（不改輸入、回傳新值）；
+薄 I/O 負責備份與寫回。honors CLAUDE_CONFIG_DIR / CODEX_HOME / XDG_CONFIG_HOME。
+"""
+import json
+import os
+import re
+import shutil
+import sys
+import time
+
+MARKER = "# added by claude-context-statusline bell/install.sh"
+
+
+# ---- Claude Code: settings.json 的 Stop hook ------------------------------
+def _stop_has_command(stop, command):
+    return any(h.get("command") == command
+               for matcher in stop for h in matcher.get("hooks", []))
+
+
+def apply_stop_hook(data, command):
+    """回傳加入我們 Stop hook 的新 dict（以 command 比對，冪等；不改輸入）。"""
+    hooks = dict(data.get("hooks", {}))
+    stop = list(hooks.get("Stop", []))
+    if _stop_has_command(stop, command):
+        return data
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    hooks = {**hooks, "Stop": stop + [entry]}
+    return {**data, "hooks": hooks}
+
+
+def remove_stop_hook(data, command):
+    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher。"""
+    hooks = dict(data.get("hooks", {}))
+    stop = hooks.get("Stop")
+    if not stop:
+        return data, False
+    kept = [m for m in stop
+            if not any(h.get("command") == command for h in m.get("hooks", []))]
+    if len(kept) == len(stop):
+        return data, False
+    if kept:
+        hooks = {**hooks, "Stop": kept}
+    else:
+        hooks = {k: v for k, v in hooks.items() if k != "Stop"}
+    return {**data, "hooks": hooks}, True
+
+
+# ---- Codex: config.toml 的 notify（文字行掃描，不解析 TOML）-----------------
+_NOTIFY_RE = re.compile(r"^\s*notify\s*=")
+
+
+def codex_has_toplevel_notify(text):
+    """是否已有頂層 notify（第一個 [table] 之前出現 notify =）。"""
+    for line in text.splitlines():
+        s = line.lstrip()
+        if s.startswith("["):          # table 或 array-of-tables 表頭
+            return False
+        if _NOTIFY_RE.match(line):
+            return True
+    return False
+
+
+def apply_codex_notify(text, command_args):
+    """回傳 (新 text, 是否變更)。無頂層 notify 時於檔首 prepend 帶 MARKER 的區段。"""
+    if codex_has_toplevel_notify(text):
+        return text, False
+    arr = ", ".join(json.dumps(a) for a in command_args)
+    block = f"{MARKER}\nnotify = [{arr}]\n"
+    if text:
+        block += "\n"  # 一律補一個空行分隔；remove_codex_notify 會剝掉這一個空行
+    return block + text, True
+
+
+def remove_codex_notify(text):
+    """移除我們以 MARKER 標記的 notify 區段（MARKER 行 + 其後 notify 行 + 一個空行）。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if lines[i].strip() == MARKER:
+            removed = True
+            i += 1
+            if i < len(lines) and _NOTIFY_RE.match(lines[i]):
+                i += 1
+            if i < len(lines) and lines[i].strip() == "":
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True
+
+
+# ---- Ghostty: 行導向 config 的 bell-features ------------------------------
+_BELL_FEATURES_RE = re.compile(r"^\s*bell-features\s*=")
+GHOSTTY_BELL_VALUE = "title,attention"
+
+
+def ghostty_has_bell_features(text):
+    return any(_BELL_FEATURES_RE.match(line) for line in text.splitlines())
+
+
+def apply_ghostty_bell(text, value=GHOSTTY_BELL_VALUE):
+    """回傳 (新 text, 是否變更)。已有 bell-features 則不動。"""
+    if ghostty_has_bell_features(text):
+        return text, False
+    block = f"{MARKER}\nbell-features = {value}\n"
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + block, True
+
+
+def remove_ghostty_bell(text):
+    """移除我們以 MARKER 標記的 bell-features 區段。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if lines[i].strip() == MARKER:
+            removed = True
+            i += 1
+            if i < len(lines) and _BELL_FEATURES_RE.match(lines[i]):
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True
+
+
+# ---- 薄 I/O -----------------------------------------------------------------
+def _read_text(path):
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _backup(path):
+    if not os.path.exists(path):
+        return None
+    backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    shutil.copy(path, backup)
+    return backup
+
+
+def _write_text(path, text, mode=None):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    if mode is not None:
+        os.chmod(path, mode)
+
+
+def _result(target, status, detail=""):
+    return {"target": target, "status": status, "detail": detail}
+
+
+def _apply_json(path, apply_fn):
+    """Claude settings.json：非法 JSON 回 error（不動檔）；有變更才備份寫回。"""
+    try:
+        text = _read_text(path)
+    except Exception as exc:  # 隔離：讀取失敗（如目標為目錄）不得中斷其他兩邊
+        return _result(path, "error", f"讀取失敗：{exc}")
+    if text.strip():
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return _result(path, "error", "settings.json 非合法 JSON，未變動")
+        if not isinstance(data, dict):
+            return _result(path, "error", "settings.json 頂層非物件，未變動")
+    else:
+        data = {}
+    new = apply_fn(data)
+    if new == data:
+        return _result(path, "skipped", "已安裝或無需變更")
+    try:
+        _backup(path)
+        _write_text(path, json.dumps(new, indent=2, ensure_ascii=False) + "\n")
+    except Exception as exc:  # 隔離：單一設定寫入失敗不得中斷其他兩邊
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+def _apply_text(path, apply_fn, mode=None):
+    """Codex / Ghostty：純文字；有變更才備份寫回（保留原權限）。"""
+    try:
+        text = _read_text(path)
+    except Exception as exc:  # 隔離：讀取失敗不得中斷其他兩邊
+        return _result(path, "error", f"讀取失敗：{exc}")
+    new, changed = apply_fn(text)
+    if not changed:
+        return _result(path, "skipped", "已安裝或已有手動設定")
+    keep_mode = mode
+    if keep_mode is None and os.path.exists(path):
+        keep_mode = os.stat(path).st_mode & 0o777
+    try:
+        _backup(path)
+        _write_text(path, new, keep_mode)
+    except Exception as exc:  # 隔離：同上
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+# ---- orchestration ----------------------------------------------------------
+def run_install(claude_path, claude_cmd, codex_path, codex_args, ghostty_path):
+    return [
+        _apply_json(claude_path, lambda d: apply_stop_hook(d, claude_cmd)),
+        _apply_text(codex_path, lambda t: apply_codex_notify(t, codex_args), mode=0o600),
+        _apply_text(ghostty_path, apply_ghostty_bell),
+    ]
+
+
+def run_uninstall(claude_path, claude_cmd, codex_path, ghostty_path):
+    return [
+        _apply_json(claude_path, lambda d: remove_stop_hook(d, claude_cmd)[0]),
+        _apply_text(codex_path, remove_codex_notify, mode=0o600),
+        _apply_text(ghostty_path, remove_ghostty_bell),
+    ]
+
+
+# ---- 路徑解析 + main --------------------------------------------------------
+def _paths(env):
+    claude = (env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude"))
+    codex = (env.get("CODEX_HOME") or os.path.expanduser("~/.codex"))
+    xdg = (env.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"))
+    return (
+        os.path.join(claude, "settings.json"),
+        os.path.join(codex, "config.toml"),
+        os.path.join(xdg, "ghostty", "config"),
+    )
+
+
+def main(argv=None, env=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    env = os.environ if env is None else env
+    if not argv or argv[0] not in ("install", "uninstall"):
+        print("usage: bell-setup install|uninstall --notify <abs-path>", file=sys.stderr)
+        return 2
+    action = argv[0]
+    notify = None
+    if "--notify" in argv:
+        i = argv.index("--notify")
+        if i + 1 >= len(argv):
+            print("!! --notify 需要一個值（bell/notify.sh 的絕對路徑）", file=sys.stderr)
+            return 2
+        notify = argv[i + 1]
+    if not notify:
+        print("!! --notify <abs path to bell/notify.sh> 為必填", file=sys.stderr)
+        return 2
+    claude_path, codex_path, ghostty_path = _paths(env)
+    claude_cmd = f"{notify} claude"
+    codex_args = [notify, "codex"]
+    if action == "install":
+        results = run_install(claude_path, claude_cmd, codex_path, codex_args, ghostty_path)
+    else:
+        results = run_uninstall(claude_path, claude_cmd, codex_path, ghostty_path)
+    for r in results:
+        mark = {"ok": "✓", "skipped": "•", "error": "!!"}[r["status"]]
+        print(f"   {mark} {r['target']} {r['detail']}".rstrip())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
