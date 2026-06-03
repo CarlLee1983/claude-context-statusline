@@ -42,8 +42,8 @@ enum StatusMenuImageRenderer {
         let iconNumberGap: CGFloat = 5
         let chipGap: CGFloat = 5
 
-        // Color is irrelevant to glyph metrics, so a single attribute set is
-        // reused for width/size measurement; drawing uses a per-entry tier color.
+        // The number stays white; status severity is shown by a corner badge on
+        // the icon (warn/critical), not by the number color.
         let numberAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.white
@@ -74,6 +74,7 @@ enum StatusMenuImageRenderer {
                 height: iconSize
             )
             drawIcon(for: entry.providerName, in: iconRect)
+            drawStatusBadge(forRemaining: entry.remaining, iconRect: iconRect)
 
             let number = NSString(string: "\(entry.remaining)")
             let numberSize = number.size(withAttributes: numberAttributes)
@@ -83,11 +84,7 @@ enum StatusMenuImageRenderer {
                 width: numberSize.width,
                 height: numberSize.height
             )
-            let drawAttributes: [NSAttributedString.Key: Any] = [
-                .font: font,
-                .foregroundColor: statusColor(forRemaining: entry.remaining)
-            ]
-            number.draw(in: numberRect, withAttributes: drawAttributes)
+            number.draw(in: numberRect, withAttributes: numberAttributes)
 
             x += chipWidth + chipGap
         }
@@ -97,17 +94,80 @@ enum StatusMenuImageRenderer {
         return image
     }
 
-    /// Number color by remaining-quota tier (lower remaining is worse).
-    /// RGB matches the SwiftBar plugin palette: green / yellow / red.
-    private static func statusColor(forRemaining remaining: Int) -> NSColor {
-        switch RemainingQuotaPresenter.tier(forRemaining: remaining) {
+    /// Status badge in the icon's lower-left corner: a yellow caution triangle for
+    /// warn, a red circle with a white exclamation for critical, nothing for good.
+    /// Shape plus color keeps it legible and colorblind-friendly.
+    private static func drawStatusBadge(forRemaining remaining: Int, iconRect: NSRect) {
+        let tier = RemainingQuotaPresenter.tier(forRemaining: remaining)
+        let size = iconRect.width * 0.68
+        let badgeRect = NSRect(
+            x: iconRect.minX - size * 0.28,
+            y: iconRect.minY - size * 0.16,
+            width: size,
+            height: size
+        )
+
+        switch tier {
         case .good:
-            return NSColor(calibratedRed: 52 / 255, green: 199 / 255, blue: 89 / 255, alpha: 1)
+            return
         case .warn:
-            return NSColor(calibratedRed: 255 / 255, green: 204 / 255, blue: 0 / 255, alpha: 1)
+            drawWarnTriangle(in: badgeRect)
         case .critical:
-            return NSColor(calibratedRed: 255 / 255, green: 59 / 255, blue: 48 / 255, alpha: 1)
+            drawCriticalExclamation(in: badgeRect)
         }
+    }
+
+    private static func drawWarnTriangle(in rect: NSRect) {
+        let inset = rect.width * 0.04
+        let triangle = NSBezierPath()
+        triangle.move(to: NSPoint(x: rect.midX, y: rect.maxY - inset))
+        triangle.line(to: NSPoint(x: rect.minX + inset, y: rect.minY + inset))
+        triangle.line(to: NSPoint(x: rect.maxX - inset, y: rect.minY + inset))
+        triangle.close()
+        triangle.lineJoinStyle = .round
+        // Dark outline first so the badge reads against any icon, then fill.
+        NSColor.black.withAlphaComponent(0.55).setStroke()
+        triangle.lineWidth = rect.width * 0.22
+        triangle.stroke()
+        NSColor(calibratedRed: 255 / 255, green: 204 / 255, blue: 0 / 255, alpha: 1).setFill()
+        triangle.fill()
+        // Dark exclamation inside the triangle.
+        NSColor.black.withAlphaComponent(0.72).setFill()
+        let barWidth = rect.width * 0.12
+        NSBezierPath(
+            roundedRect: NSRect(
+                x: rect.midX - barWidth / 2, y: rect.minY + rect.height * 0.36,
+                width: barWidth, height: rect.height * 0.26
+            ),
+            xRadius: barWidth / 2, yRadius: barWidth / 2
+        ).fill()
+        let dot = rect.width * 0.13
+        NSBezierPath(ovalIn: NSRect(
+            x: rect.midX - dot / 2, y: rect.minY + rect.height * 0.24, width: dot, height: dot
+        )).fill()
+    }
+
+    private static func drawCriticalExclamation(in rect: NSRect) {
+        let circle = NSBezierPath(ovalIn: rect)
+        // White outer ring first so the badge reads against any icon, then fill.
+        NSColor.white.withAlphaComponent(0.92).setStroke()
+        circle.lineWidth = rect.width * 0.12
+        circle.stroke()
+        NSColor(calibratedRed: 255 / 255, green: 59 / 255, blue: 48 / 255, alpha: 1).setFill()
+        circle.fill()
+        NSColor.white.setFill()
+        let barWidth = rect.width * 0.15
+        NSBezierPath(
+            roundedRect: NSRect(
+                x: rect.midX - barWidth / 2, y: rect.minY + rect.height * 0.38,
+                width: barWidth, height: rect.height * 0.30
+            ),
+            xRadius: barWidth / 2, yRadius: barWidth / 2
+        ).fill()
+        let dot = barWidth * 1.1
+        NSBezierPath(ovalIn: NSRect(
+            x: rect.midX - dot / 2, y: rect.minY + rect.height * 0.20, width: dot, height: dot
+        )).fill()
     }
 
     private static func drawChipBackground(in rect: NSRect) {
