@@ -1,6 +1,22 @@
 import Foundation
 
+/// Status severity for a remaining-quota value. Lower remaining is worse.
+public enum RemainingTier: Equatable, Sendable {
+    case good
+    case warn
+    case critical
+}
+
 public enum RemainingQuotaPresenter {
+    /// Map a remaining percent (0...100) to a status tier using the repository
+    /// convention (mirrors WARN_PCT=70 / CRIT_PCT=90 from the SwiftBar plugin,
+    /// expressed as remaining): <= 10 critical, <= 30 warn, otherwise good.
+    public static func tier(forRemaining remaining: Int) -> RemainingTier {
+        if remaining <= 10 { return .critical }
+        if remaining <= 30 { return .warn }
+        return .good
+    }
+
     public static func remainingPercent(for window: UsageWindow) -> Int {
         let remaining: Double
         switch window.kind {

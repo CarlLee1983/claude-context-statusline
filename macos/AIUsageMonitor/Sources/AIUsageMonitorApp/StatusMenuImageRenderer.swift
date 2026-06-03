@@ -42,6 +42,8 @@ enum StatusMenuImageRenderer {
         let iconNumberGap: CGFloat = 5
         let chipGap: CGFloat = 5
 
+        // Color is irrelevant to glyph metrics, so a single attribute set is
+        // reused for width/size measurement; drawing uses a per-entry tier color.
         let numberAttributes: [NSAttributedString.Key: Any] = [
             .font: font,
             .foregroundColor: NSColor.white
@@ -81,7 +83,11 @@ enum StatusMenuImageRenderer {
                 width: numberSize.width,
                 height: numberSize.height
             )
-            number.draw(in: numberRect, withAttributes: numberAttributes)
+            let drawAttributes: [NSAttributedString.Key: Any] = [
+                .font: font,
+                .foregroundColor: statusColor(forRemaining: entry.remaining)
+            ]
+            number.draw(in: numberRect, withAttributes: drawAttributes)
 
             x += chipWidth + chipGap
         }
@@ -89,6 +95,19 @@ enum StatusMenuImageRenderer {
         image.unlockFocus()
         image.size = NSSize(width: canvasSize.width / scale * scale, height: canvasSize.height)
         return image
+    }
+
+    /// Number color by remaining-quota tier (lower remaining is worse).
+    /// RGB matches the SwiftBar plugin palette: green / yellow / red.
+    private static func statusColor(forRemaining remaining: Int) -> NSColor {
+        switch RemainingQuotaPresenter.tier(forRemaining: remaining) {
+        case .good:
+            return NSColor(calibratedRed: 52 / 255, green: 199 / 255, blue: 89 / 255, alpha: 1)
+        case .warn:
+            return NSColor(calibratedRed: 255 / 255, green: 204 / 255, blue: 0 / 255, alpha: 1)
+        case .critical:
+            return NSColor(calibratedRed: 255 / 255, green: 59 / 255, blue: 48 / 255, alpha: 1)
+        }
     }
 
     private static func drawChipBackground(in rect: NSRect) {

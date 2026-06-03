@@ -72,6 +72,19 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.emptyDetailTitle(for: withData) == nil)
     }
 
+    @Test("maps remaining percent to status tiers at the repo thresholds")
+    func remainingTiers() {
+        // critical: <= 10
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 0) == .critical)
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 10) == .critical)
+        // warn: 11...30
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 11) == .warn)
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 30) == .warn)
+        // good: > 30
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 31) == .good)
+        #expect(RemainingQuotaPresenter.tier(forRemaining: 100) == .good)
+    }
+
     @Test("builds dropdown details with remaining and source semantics")
     func dropdownDetailsDescribeRemainingAndSourceSemantics() {
         let reset = Date(timeIntervalSince1970: 1_800_000_000)
