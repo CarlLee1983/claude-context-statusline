@@ -4,7 +4,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="AIUsageMonitor"
 PRODUCT_NAME="AIUsageMonitorApp"
-CONFIGURATION="debug"
+CONFIGURATION="${CONFIGURATION:-debug}"
+APP_VERSION="${APP_VERSION:-0.1.0}"
 BUNDLE_DIR="$ROOT/.build/$APP_NAME.app"
 MACOS_DIR="$BUNDLE_DIR/Contents/MacOS"
 RESOURCES_DIR="$BUNDLE_DIR/Contents/Resources"
@@ -31,7 +32,7 @@ cat > "$BUNDLE_DIR/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
-  <string>0.1.0</string>
+  <string>$APP_VERSION</string>
   <key>CFBundleVersion</key>
   <string>1</string>
   <key>LSMinimumSystemVersion</key>
