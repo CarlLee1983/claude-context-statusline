@@ -42,5 +42,52 @@ class PureFnTests(unittest.TestCase):
         self.assertEqual(new_data, {"keep": 1})
 
 
+class RunTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.settings = os.path.join(self.dir, "settings.json")
+
+    def _read(self):
+        with open(self.settings) as f:
+            return json.load(f)
+
+    def test_merge_creates_file_when_missing(self):
+        msg = setup.run(self.settings, command="/usr/bin/python3 /x/ctx-statusline")
+        self.assertIn("statusLine ->", msg)
+        self.assertEqual(
+            self._read()["statusLine"]["command"],
+            "/usr/bin/python3 /x/ctx-statusline",
+        )
+
+    def test_merge_preserves_existing_keys_and_backs_up(self):
+        with open(self.settings, "w") as f:
+            json.dump({"model": "opus"}, f)
+        setup.run(self.settings, command="cmd")
+        self.assertEqual(self._read()["model"], "opus")
+        backups = [n for n in os.listdir(self.dir) if ".bak." in n]
+        self.assertEqual(len(backups), 1)
+
+    def test_merge_invalid_json_raises_and_leaves_file_untouched(self):
+        with open(self.settings, "w") as f:
+            f.write("{ not json")
+        with self.assertRaises(setup.InvalidSettings):
+            setup.run(self.settings, command="cmd")
+        with open(self.settings) as f:
+            self.assertEqual(f.read(), "{ not json")
+
+    def test_remove_drops_status_line_keeping_others(self):
+        with open(self.settings, "w") as f:
+            json.dump({"statusLine": {"type": "command"}, "keep": 1}, f)
+        msg = setup.run(self.settings, remove=True)
+        self.assertIn("removed statusLine", msg)
+        self.assertEqual(self._read(), {"keep": 1})
+
+    def test_remove_when_absent_is_noop(self):
+        with open(self.settings, "w") as f:
+            json.dump({"keep": 1}, f)
+        msg = setup.run(self.settings, remove=True)
+        self.assertIn("nothing to do", msg)
+
+
 if __name__ == "__main__":
     unittest.main()

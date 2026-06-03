@@ -29,3 +29,50 @@ def remove_status_line(data):
     if STATUS_LINE_KEY not in data:
         return data, False
     return {k: v for k, v in data.items() if k != STATUS_LINE_KEY}, True
+
+
+def _load(settings_path):
+    if not os.path.exists(settings_path):
+        return {}
+    with open(settings_path) as f:
+        try:
+            data = json.load(f)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise InvalidSettings(str(exc)) from exc
+    if not isinstance(data, dict):
+        raise InvalidSettings("top level is not an object")
+    return data
+
+
+def _backup(settings_path):
+    if not os.path.exists(settings_path):
+        return None
+    backup = f"{settings_path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    shutil.copy(settings_path, backup)
+    return backup
+
+
+def _write(settings_path, data):
+    os.makedirs(os.path.dirname(settings_path) or ".", exist_ok=True)
+    with open(settings_path, "w") as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+
+
+def run(settings_path, command=None, remove=False):
+    """備份 → 載入 → 套用/移除 → 寫回。回傳訊息字串；非法 JSON 拋 InvalidSettings。
+
+    注意：_load 在任何寫入前先驗證，故非法 JSON 時檔案保持原狀（不寫、不備份）。
+    """
+    data = _load(settings_path)
+    if remove:
+        new_data, removed = remove_status_line(data)
+        if not removed:
+            return "no statusLine present, nothing to do"
+        _backup(settings_path)
+        _write(settings_path, new_data)
+        return "removed statusLine from settings.json"
+    new_data = apply_status_line(data, command)
+    _backup(settings_path)
+    _write(settings_path, new_data)
+    return f"statusLine -> {command}"
