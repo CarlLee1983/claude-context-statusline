@@ -42,7 +42,7 @@ AI CLI 跑完一輪時，透過終端機 BEL（`\a`）觸發 [Ghostty](https://g
    （安裝器會解析並寫入 `notify.sh` 的**絕對路徑**，不論之後從哪個 CWD 執行都仍有效；
    已有 `notify` 設定時，略過並提示手動指向本腳本）
 3. **Ghostty** `~/.config/ghostty/config`（XDG 位置）— 加入 `bell-features = title,attention`
-   （已有 `bell-features` 時，略過並印出目前值；若 `~/Library/Application Support/com.mitchellh.ghostty/config` 也有此設定，**只警告、不動它**）
+   （已有 `bell-features` 時，**略過、不覆蓋**你手動設的值；若 `~/Library/Application Support/com.mitchellh.ghostty/config` 也有此設定，**只警告、不動它**）
 
 完成後：
 - **重新開啟 Claude Code session** 讓 Stop hook 生效

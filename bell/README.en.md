@@ -47,8 +47,8 @@ The installer does three things (each with a backup, additive-only, idempotent):
    working regardless of CWD; if a `notify` key already exists at the top level, it skips
    and prompts you to point it at this script manually)
 3. **Ghostty** `~/.config/ghostty/config` (XDG location) — appends `bell-features = title,attention`
-   (if `bell-features` is already defined, it skips and shows the current value;
-   if `~/Library/Application Support/com.mitchellh.ghostty/config` also sets
+   (if `bell-features` is already defined, it **skips and does not overwrite** your hand-set
+   value; if `~/Library/Application Support/com.mitchellh.ghostty/config` also sets
    `bell-features`, it **warns but does not touch** that file)
 
 After installing:
