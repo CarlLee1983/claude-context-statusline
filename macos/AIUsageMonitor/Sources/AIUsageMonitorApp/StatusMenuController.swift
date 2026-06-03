@@ -32,6 +32,7 @@ final class StatusMenuController {
     }
 
     private func setStatusTitle(_ title: String) {
+        statusItem.button?.imagePosition = .noImage
         statusItem.button?.image = nil
         statusItem.button?.title = title
         statusItem.button?.toolTip = title == "AI" ? "AI Usage Monitor" : title
