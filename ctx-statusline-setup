@@ -76,3 +76,42 @@ def run(settings_path, command=None, remove=False):
     _backup(settings_path)
     _write(settings_path, new_data)
     return f"statusLine -> {command}"
+
+
+def default_command():
+    """預設 command：/usr/bin/python3 <與本腳本同目錄的 ctx-statusline>。"""
+    here = os.path.dirname(os.path.realpath(__file__))
+    return f"/usr/bin/python3 {os.path.join(here, 'ctx-statusline')}"
+
+
+def main(argv=None, env=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    env = os.environ if env is None else env
+    remove = "--remove" in argv
+    command = None
+    if "--command" in argv:
+        i = argv.index("--command")
+        if i + 1 >= len(argv):
+            print("!! --command needs a value", file=sys.stderr)
+            return 2
+        command = argv[i + 1]
+    claude_dir = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    settings_path = os.path.join(claude_dir, "settings.json")
+    if not remove and command is None:
+        command = default_command()
+    try:
+        msg = run(settings_path, command=command, remove=remove)
+    except InvalidSettings:
+        if remove:
+            print("!! settings.json 不是合法 JSON，略過移除 statusLine（請手動編輯）",
+                  file=sys.stderr)
+            return 0
+        print("!! settings.json 不是合法 JSON，已中止（檔案未變動，請見備份）",
+              file=sys.stderr)
+        return 1
+    print("   " + msg)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

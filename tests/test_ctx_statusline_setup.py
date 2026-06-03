@@ -89,5 +89,44 @@ class RunTests(unittest.TestCase):
         self.assertIn("nothing to do", msg)
 
 
+class MainTests(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+
+    def test_main_uses_claude_config_dir_and_command(self):
+        rc = setup.main(["--command", "mycmd"], env={"CLAUDE_CONFIG_DIR": self.dir})
+        self.assertEqual(rc, 0)
+        with open(os.path.join(self.dir, "settings.json")) as f:
+            self.assertEqual(json.load(f)["statusLine"]["command"], "mycmd")
+
+    def test_main_remove_returns_zero(self):
+        path = os.path.join(self.dir, "settings.json")
+        with open(path, "w") as f:
+            json.dump({"statusLine": {"x": 1}}, f)
+        rc = setup.main(["--remove"], env={"CLAUDE_CONFIG_DIR": self.dir})
+        self.assertEqual(rc, 0)
+        with open(path) as f:
+            self.assertNotIn("statusLine", json.load(f))
+
+    def test_main_merge_invalid_json_returns_one(self):
+        path = os.path.join(self.dir, "settings.json")
+        with open(path, "w") as f:
+            f.write("nope")
+        rc = setup.main(["--command", "c"], env={"CLAUDE_CONFIG_DIR": self.dir})
+        self.assertEqual(rc, 1)
+
+    def test_main_remove_invalid_json_returns_zero(self):
+        path = os.path.join(self.dir, "settings.json")
+        with open(path, "w") as f:
+            f.write("nope")
+        rc = setup.main(["--remove"], env={"CLAUDE_CONFIG_DIR": self.dir})
+        self.assertEqual(rc, 0)
+
+    def test_default_command_points_at_sibling(self):
+        cmd = setup.default_command()
+        self.assertTrue(cmd.startswith("/usr/bin/python3 "))
+        self.assertTrue(cmd.rstrip().endswith("ctx-statusline"))
+
+
 if __name__ == "__main__":
     unittest.main()
