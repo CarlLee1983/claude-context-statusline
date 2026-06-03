@@ -51,7 +51,9 @@ public struct CodexUsageProvider: Sendable {
             ]],
         ])
         send(["jsonrpc": "2.0", "id": 2, "method": "account/rateLimits/read", "params": [:]])
-        inPipe.fileHandleForWriting.closeFile()
+        // Do NOT close stdin here: codex app-server treats stdin EOF as a
+        // shutdown signal and exits before emitting the rateLimits result.
+        // The read loop breaks on the id==2 result; the watchdog handles hangs.
 
         let handle = outPipe.fileHandleForReading
         var buffer = Data()
