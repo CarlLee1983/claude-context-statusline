@@ -27,20 +27,26 @@ final class StatusMenuController {
         setStatusTitle("AI")
         snapshots = await provider.snapshots()
         isRefreshing = false
-        setStatusTitle(menuTitle)
+        setStatusPresentation(for: snapshots)
         rebuildMenu()
     }
 
-    private var menuTitle: String {
-        guard !snapshots.isEmpty else { return "AI —" }
-        return snapshots.map { snapshot in
-            guard let first = snapshot.windows.first else { return "\(snapshot.shortName) —" }
-            return "\(snapshot.shortName) \(Int(first.percent.rounded()))%"
-        }.joined(separator: " ")
+    private func setStatusTitle(_ title: String) {
+        statusItem.button?.image = nil
+        statusItem.button?.title = title
+        statusItem.button?.toolTip = title == "AI" ? "AI Usage Monitor" : title
     }
 
-    private func setStatusTitle(_ title: String) {
-        statusItem.button?.title = title
+    private func setStatusPresentation(for snapshots: [ProviderSnapshot]) {
+        let rendered = StatusMenuImageRenderer.renderStatus(for: snapshots)
+        if let image = rendered.image {
+            statusItem.button?.title = ""
+            statusItem.button?.image = image
+            statusItem.button?.imagePosition = .imageOnly
+            statusItem.button?.toolTip = rendered.accessibilityTitle
+        } else {
+            setStatusTitle(rendered.fallbackTitle)
+        }
     }
 
     private func rebuildMenu() {
