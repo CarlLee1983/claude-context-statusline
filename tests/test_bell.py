@@ -148,5 +148,38 @@ class CodexNotifyTest(unittest.TestCase):
         self.assertEqual(out, text)
 
 
+class GhosttyBellTest(unittest.TestCase):
+    def test_apply_appends_when_absent(self):
+        out, changed = bell_setup.apply_ghostty_bell("font-size = 14\n")
+        self.assertTrue(changed)
+        self.assertIn("bell-features = title,attention", out)
+        self.assertIn("font-size = 14", out)
+        self.assertTrue(out.endswith("\n"))
+
+    def test_apply_adds_trailing_newline_when_missing(self):
+        out, changed = bell_setup.apply_ghostty_bell("font-size = 14")  # 無結尾換行
+        self.assertTrue(changed)
+        self.assertIn("font-size = 14\n", out)
+        self.assertIn("bell-features = title,attention", out)
+
+    def test_apply_noop_when_bell_features_present(self):
+        text = "bell-features = no-audio\n"
+        out, changed = bell_setup.apply_ghostty_bell(text)
+        self.assertFalse(changed)
+        self.assertEqual(out, text)
+
+    def test_remove_strips_our_block(self):
+        applied, _ = bell_setup.apply_ghostty_bell("font-size = 14\n")
+        out, removed = bell_setup.remove_ghostty_bell(applied)
+        self.assertTrue(removed)
+        self.assertNotIn("bell-features", out)
+        self.assertIn("font-size = 14", out)
+
+    def test_remove_noop_for_hand_written(self):
+        out, removed = bell_setup.remove_ghostty_bell("bell-features = audio\n")
+        self.assertFalse(removed)
+        self.assertEqual(out, "bell-features = audio\n")
+
+
 if __name__ == "__main__":
     unittest.main()

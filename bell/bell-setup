@@ -95,3 +95,43 @@ def remove_codex_notify(text):
     if text.endswith("\n") and new and not new.endswith("\n"):
         new += "\n"
     return new, True
+
+
+# ---- Ghostty: 行導向 config 的 bell-features ------------------------------
+_BELL_FEATURES_RE = re.compile(r"^\s*bell-features\s*=")
+GHOSTTY_BELL_VALUE = "title,attention"
+
+
+def ghostty_has_bell_features(text):
+    return any(_BELL_FEATURES_RE.match(line) for line in text.splitlines())
+
+
+def apply_ghostty_bell(text, value=GHOSTTY_BELL_VALUE):
+    """回傳 (新 text, 是否變更)。已有 bell-features 則不動。"""
+    if ghostty_has_bell_features(text):
+        return text, False
+    block = f"{MARKER}\nbell-features = {value}\n"
+    if text and not text.endswith("\n"):
+        text += "\n"
+    return text + block, True
+
+
+def remove_ghostty_bell(text):
+    """移除我們以 MARKER 標記的 bell-features 區段。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if lines[i].strip() == MARKER:
+            removed = True
+            i += 1
+            if i < len(lines) and _BELL_FEATURES_RE.match(lines[i]):
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True
