@@ -3,9 +3,21 @@ import Foundation
 /// Parses the Anthropic OAuth usage endpoint payload into `.used` usage windows.
 /// Pure and total: any malformed or missing data yields an empty array.
 public enum ClaudeUsageParser {
-    // ISO8601DateFormatter's date(from:) is thread-safe for reads; sharing one
-    // instance avoids per-call allocation.
+    // ISO8601DateFormatter's date(from:) is thread-safe for reads; sharing the
+    // instances avoids per-call allocation. The live API returns fractional
+    // seconds (e.g. "2026-06-03T06:19:59.866880+00:00"), which the default
+    // formatter rejects — so try a fractional-aware formatter first and fall
+    // back to the plain one for whole-second timestamps.
+    private nonisolated(unsafe) static let iso8601Fractional: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
     private nonisolated(unsafe) static let iso8601 = ISO8601DateFormatter()
+
+    private static func parseDate(_ string: String) -> Date? {
+        iso8601Fractional.date(from: string) ?? iso8601.date(from: string)
+    }
 
     public static func parse(_ data: Data) -> [UsageWindow] {
         guard let decoded = try? JSONDecoder().decode(Response.self, from: data) else {
@@ -23,7 +35,7 @@ public enum ClaudeUsageParser {
             label: label,
             percent: node.utilization,
             kind: .used,
-            resetAt: Self.iso8601.date(from: node.resetsAt)
+            resetAt: Self.parseDate(node.resetsAt)
         )
     }
 

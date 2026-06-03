@@ -21,6 +21,24 @@ struct ClaudeUsageParserTests {
         #expect(windows.allSatisfy { $0.resetAt != nil })
     }
 
+    @Test("parses fractional-second timestamps with explicit UTC offset")
+    func fractionalSecondResetAt() throws {
+        // Real API shape: 6-digit fractional seconds plus a `+00:00` offset,
+        // which the default ISO8601 formatter rejects.
+        let json = """
+        {
+          "five_hour": { "utilization": 50, "resets_at": "2026-06-03T06:19:59.866880+00:00" }
+        }
+        """.data(using: .utf8)!
+
+        let windows = ClaudeUsageParser.parse(json)
+
+        #expect(windows.count == 1)
+        let expected = Date(timeIntervalSince1970: 1_780_467_599.86688)
+        let resetAt = try #require(windows.first?.resetAt)
+        #expect(abs(resetAt.timeIntervalSince1970 - expected.timeIntervalSince1970) < 0.001)
+    }
+
     @Test("skips a missing window safely")
     func partial() {
         let json = #"{ "five_hour": { "utilization": 50, "resets_at": "2027-01-15T08:30:00Z" } }"#
