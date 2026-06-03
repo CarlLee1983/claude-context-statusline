@@ -4,13 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 專案概述
 
-讓 AI CLI 用量隨時可見的 macOS 小工具集，目前有三個元件：
+讓 AI CLI 用量隨時可見、跑完有提示的 macOS 小工具集，目前有四個元件：
 
 1. **`ctx-statusline.py`**（原始核心）：Claude Code 狀態列工具，常駐顯示目前 session 的 context window 佔用程度。純標準庫、零相依，搭配 `install.sh` / `uninstall.sh` 與 `tests/test_ctx_statusline.py`。
 2. **`macos/AIUsageMonitor`**：純 Swift 的 macOS 原生選單列 App，原生抓取 Claude 與 Codex 的速率限制（5h / 7d），每 5 分鐘自動刷新。
 3. **`swiftbar/ai-usage.60s.py`**：SwiftBar 外掛，單檔 Python 顯示 Claude、Codex、Antigravity 的速率限制；測試在 `tests/test_ai_usage.py`。
+4. **`bell/`**：AI CLI 完成提示——AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁/視窗標記。含 `bell/notify.sh`（BEL 發送器）、`bell/bell-setup`（合併邏輯）、`bell/install.sh` / `bell/uninstall.sh`；測試在 `tests/test_bell.py`。
 
-> 注意兩類資料不同：**ctx-statusline** 看的是單一 session 的 **context window** 用量；**原生 App** 與 **SwiftBar 外掛** 看的是訂閱方案的 **速率限制（5h / 7d）剩餘額度**。
+> 各元件監看的資料不同：**ctx-statusline** 看的是單一 session 的 **context window** 用量；**原生 App** 與 **SwiftBar 外掛** 看的是訂閱方案的 **速率限制（5h / 7d）剩餘額度**；**bell** 看的是「完成事件 → 終端機分頁標記」，不讀用量數字。
 
 ## 開發指令
 
@@ -22,8 +23,8 @@ python3 -m unittest discover -s tests -v
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
 
 # 檢查 shell 腳本（注意：zsh 下別用未加引號的變數展開多檔，會不分詞；直接列檔最穩）
-bash -n install.sh uninstall.sh swiftbar/install.sh macos/AIUsageMonitor/Scripts/*.sh
-shellcheck install.sh uninstall.sh swiftbar/install.sh macos/AIUsageMonitor/Scripts/*.sh
+bash -n install.sh uninstall.sh swiftbar/install.sh bell/install.sh bell/uninstall.sh macos/AIUsageMonitor/Scripts/*.sh
+shellcheck install.sh uninstall.sh swiftbar/install.sh bell/install.sh bell/uninstall.sh macos/AIUsageMonitor/Scripts/*.sh
 
 # 安裝到 ~/.claude/（複製腳本 + 併入 settings.json，會自動備份）
 # 可用 CLAUDE_CONFIG_DIR 指定其他設定目錄（測試安裝時很有用）
@@ -34,6 +35,11 @@ CLAUDE_CONFIG_DIR=$(mktemp -d) ./install.sh
 
 # SwiftBar 外掛：直接執行看輸出（SwiftBar 純文字 + 中繼指令格式）
 ./swiftbar/ai-usage.60s.py
+
+# bell 完成提示：安裝（三邊設定：Claude / Codex / Ghostty）
+./bell/install.sh
+# bell 完成提示：個別測試
+python3 -m unittest tests.test_bell -v
 
 # macOS 原生 App：測試與建置
 cd macos/AIUsageMonitor && swift test
@@ -76,5 +82,5 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 
 - 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。測試亦只用標準庫 `unittest`。
 - 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)、`TAIL_BYTES`(尾端讀取量)。
-- 文件採中英雙語：每處 `README.md`（繁中為主）都搭一份 `README.en.md`（英文）並同步更新——含頂層、`macos/AIUsageMonitor/` 與 `swiftbar/`。頂層 README 為三工具總覽，細節連到各子目錄 README。變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
+- 文件採中英雙語：每處 `README.md`（繁中為主）都搭一份 `README.en.md`（英文）並同步更新——含頂層、`macos/AIUsageMonitor/`、`swiftbar/` 與 `bell/`。頂層 README 為四工具總覽，細節連到各子目錄 README。變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
 - 安裝/移除腳本支援 `CLAUDE_CONFIG_DIR` 覆寫設定目錄（預設 `~/.claude`）。

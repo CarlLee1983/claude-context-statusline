@@ -2,21 +2,24 @@
 
 [繁體中文](README.md) · **English**
 
-A small toolkit for keeping **AI CLI usage visible** on macOS. It started as a Claude Code
-context statusline and grew into two ways to keep your subscription **rate-limit headroom**
-in the macOS menu bar: a native menu bar app and a SwiftBar plugin.
+A small toolkit for keeping **AI CLI usage visible and turn completion noticed** on macOS.
+It started as a Claude Code context statusline and grew into two ways to keep subscription
+**rate-limit headroom** in the macOS menu bar (a native app and a SwiftBar plugin), plus a
+completion bell that rings the terminal BEL at turn-end to trigger a Ghostty tab marker.
 
-## Three tools
+## Four tools
 
 | Tool | Where it shows | What it watches | Dependencies | Install |
 |------|----------------|-----------------|--------------|---------|
 | [**ctx-statusline**](#1-context-statusline-ctx-statuslinepy) | Claude Code statusline | Current session's **context window** usage | System `python3`, zero deps | `brew install CarlLee1983/tap/ctx-statusline` (or `./install.sh`) |
 | [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor` (or `./Scripts/install-app.sh`) |
 | [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | `brew install CarlLee1983/tap/swiftbar-ai-usage` (or `./swiftbar/install.sh`) |
+| [**Completion bell (`bell/`)**](bell/README.en.md) | Ghostty tab / Dock | **Completion event → terminal tab marker** (BEL) | System `python3`, Ghostty | `./bell/install.sh` |
 
-> The two kinds of data differ: **ctx-statusline** shows "how much of a single session's
-> context window is used"; the **native app** and **SwiftBar plugin** show "how much of your
-> subscription's 5-hour / 7-day rate limit is left."
+> Each component watches different data: **ctx-statusline** shows "how much of a single
+> session's context window is used"; the **native app** and **SwiftBar plugin** show "how
+> much of the subscription's 5-hour / 7-day rate limit is left"; **bell** watches
+> "when an AI CLI finishes a turn → terminal tab marker" and reads no usage numbers.
 
 ---
 
@@ -131,6 +134,21 @@ gives you the same rate-limit data: the menu bar shows Claude Code and Codex (pl
 5h / 7d headroom, with progress bars and reset times in the dropdown.
 
 For full install and configuration see **[swiftbar/README.en.md](swiftbar/README.en.md)**.
+
+---
+
+## 4. Completion bell (`bell/`)
+
+When an AI CLI finishes a turn, a terminal BEL causes Ghostty to mark the tab or window as
+needing attention — the Dock icon bounces while you wait in another app, and the tab title
+shows 🔔 when you return. Supports Claude Code (Stop hook) and Codex (notify). Silent,
+purely visual, zero extra dependencies.
+
+For full install and architecture see **[bell/README.en.md](bell/README.en.md)**.
+
+```bash
+./bell/install.sh
+```
 
 ---
 
