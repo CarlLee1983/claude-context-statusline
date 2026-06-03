@@ -10,6 +10,10 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- macOS 原生選單列 app（`macos/AIUsageMonitor`）：以原生 Swift 抓取 Claude 與 Codex 即時用量，
+  選單列顯示剩餘額度,每 5 分鐘自動刷新(取代先前的 demo 假資料);Antigravity 暫時移除。
+  Native macOS menu bar app: live Claude + Codex usage in native Swift with a
+  5-minute auto-refresh (replaces demo data). Antigravity temporarily removed.
 - 標準庫單元測試套件（`tests/`，22 個測試），可用 `python3 -m unittest discover -s tests` 執行。
   Stdlib unit-test suite (`tests/`, 22 tests).
 - 安裝/移除腳本支援 `CLAUDE_CONFIG_DIR` 環境變數以指定設定目錄。
