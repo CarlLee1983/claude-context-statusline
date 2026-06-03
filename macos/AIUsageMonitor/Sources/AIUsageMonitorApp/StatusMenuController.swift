@@ -70,9 +70,8 @@ final class StatusMenuController {
                 menu.addItem(providerItem)
 
                 for window in snapshot.windows {
-                    let resetText = window.resetAt.map { " · reset \($0.formatted(date: .omitted, time: .shortened))" } ?? ""
                     let item = NSMenuItem(
-                        title: "  \(window.label): \(Int(window.percent.rounded()))% \(window.kind.menuLabel)\(resetText)",
+                        title: "  \(RemainingQuotaPresenter.detailTitle(for: window))",
                         action: nil,
                         keyEquivalent: ""
                     )
@@ -101,16 +100,5 @@ final class StatusMenuController {
 
     @objc private func quitMenuItemSelected() {
         NSApplication.shared.terminate(nil)
-    }
-}
-
-private extension QuotaKind {
-    var menuLabel: String {
-        switch self {
-        case .used:
-            "used"
-        case .available:
-            "available"
-        }
     }
 }
