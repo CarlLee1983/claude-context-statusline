@@ -120,3 +120,31 @@ class TrackMainTest(unittest.TestCase):
         self.assertEqual(rec["started_at"], 10)
         self.assertEqual(rec["updated_at"], 30)
         self.assertEqual(rec["status"], "idle")
+
+
+class TrackShTest(unittest.TestCase):
+    TRACK = os.path.join(_DIR, "track.sh")
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+
+    def _run(self, args, stdin=b""):
+        return subprocess.run(["/bin/sh", self.TRACK, *args], input=stdin,
+                              env={**os.environ, "AI_SESSIONS_DIR": self.dir},
+                              capture_output=True, timeout=10)
+
+    def test_claude_stop_writes_record_and_exits_zero(self):
+        payload = json.dumps({"hook_event_name": "Stop", "session_id": "s1", "cwd": "/p"})
+        proc = self._run(["claude"], stdin=payload.encode())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.dir, "s1.json")))
+
+    def test_bad_stdin_does_not_error(self):
+        proc = self._run(["claude"], stdin=b"NOT JSON")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stderr, b"")
+        self.assertEqual(os.listdir(self.dir), [])
+
+    def test_no_args_does_not_error(self):
+        proc = self._run([])
+        self.assertEqual(proc.returncode, 0, proc.stderr)
