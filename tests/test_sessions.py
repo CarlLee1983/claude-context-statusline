@@ -185,13 +185,17 @@ class NotifyShTest(unittest.TestCase):
 class ClaudeHooksTest(unittest.TestCase):
     CMD = "/abs/sessions/track.sh claude"
 
-    def test_apply_adds_all_four_events(self):
+    def test_apply_adds_all_events(self):
         out = setup.apply_claude_hooks({}, self.CMD)
         for ev in setup.CLAUDE_EVENTS:
             self.assertEqual(out["hooks"][ev],
                              [{"hooks": [{"type": "command", "command": self.CMD}]}])
         self.assertEqual(setup.CLAUDE_EVENTS,
-                         ["SessionStart", "UserPromptSubmit", "Stop", "Notification"])
+                         ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"])
+
+    def test_sessionend_is_registered(self):
+        out = setup.apply_claude_hooks({}, self.CMD)
+        self.assertIn("SessionEnd", out["hooks"])
 
     def test_apply_is_idempotent(self):
         once = setup.apply_claude_hooks({}, self.CMD)

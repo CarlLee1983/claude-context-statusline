@@ -3,8 +3,8 @@
 # Install session-dashboard state tracking hooks.
 #
 # 做的事（皆先備份、只增不刪、可重複執行）:
-#   (1) Claude settings.json 加 SessionStart/UserPromptSubmit/Stop/Notification
-#       hook → sessions/track.sh claude
+#   (1) Claude settings.json 加 SessionStart/UserPromptSubmit/Stop/Notification/SessionEnd
+#       hook → sessions/track.sh claude（SessionEnd 結束時清除狀態檔）
 #   (2) Codex config.toml 的 notify 指向 sessions/notify.sh（合併派發器：同時觸發
 #       bell 與狀態追蹤）。無 notify → 新增；bell 既有 notify → 升級；外來 → 略過。
 set -euo pipefail

@@ -69,8 +69,9 @@ always show `idle` + last-done time — they never appear as `running` or `waiti
 The installer does two things (each with a backup, additive-only, idempotent):
 
 1. **Claude Code** `~/.claude/settings.json` — adds `sessions/track.sh claude` to
-   `hooks.SessionStart`, `hooks.UserPromptSubmit`, `hooks.Stop`, and `hooks.Notification`
-   (command-matching, so re-running is safe)
+   `hooks.SessionStart`, `hooks.UserPromptSubmit`, `hooks.Stop`, `hooks.Notification`,
+   and `hooks.SessionEnd` (command-matching, so re-running is safe; `SessionEnd` cleans
+   up the state file when the session ends)
 2. **Codex** `~/.codex/config.toml` — sets the top-level `notify` to
    `["/path/to/sessions/notify.sh", "codex"]` (see "Codex notify dispatcher" below)
 
@@ -92,7 +93,7 @@ AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ./sessions/uninstall.sh
 ```
 
-Removes the four Claude hook entries and the Codex notify setting (both with backups).
+Removes the five Claude hook entries and the Codex notify setting (both with backups).
 
 > **Note**: uninstalling removes the Codex `notify` key entirely — the bell's BEL
 > signal will also stop firing. To restore bell-only Codex notifications, run

@@ -62,7 +62,7 @@ Codex 只發出一種 notify 事件（`agent-turn-complete`），所以 Codex se
 
 安裝腳本會做兩件事（皆先備份、只增不刪、可重複執行）：
 
-1. **Claude Code** `~/.claude/settings.json` — 在 `hooks.SessionStart`、`hooks.UserPromptSubmit`、`hooks.Stop`、`hooks.Notification` 各加入 `sessions/track.sh claude`（以 command 比對，冪等）
+1. **Claude Code** `~/.claude/settings.json` — 在 `hooks.SessionStart`、`hooks.UserPromptSubmit`、`hooks.Stop`、`hooks.Notification`、`hooks.SessionEnd` 各加入 `sessions/track.sh claude`（以 command 比對，冪等；SessionEnd 觸發時會清除該 session 的狀態檔）
 2. **Codex** `~/.codex/config.toml` — 在頂層加 `notify = ["/path/to/sessions/notify.sh", "codex"]`（詳見下方「Codex notify 合併派發器」）
 
 完成後：
@@ -83,7 +83,7 @@ AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ./sessions/uninstall.sh
 ```
 
-從 Claude settings 移除四個事件的 hook，從 Codex config.toml 移除 notify 設定（皆留備份）。
+從 Claude settings 移除五個事件的 hook，從 Codex config.toml 移除 notify 設定（皆留備份）。
 
 > **注意**：移除後 Codex 的 `notify` 整個消失，連 bell 的 BEL 提示也不再觸發。
 > 若仍想保留 bell，移除後重跑 `./bell/install.sh` 還原 bell-only notify。

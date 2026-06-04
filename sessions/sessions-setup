@@ -13,8 +13,8 @@ import time
 
 MARKER = "# added by claude-context-statusline sessions/install.sh"
 
-# Claude：儀表板要追蹤的四個事件（同一個 command 掛在四個事件下）。
-CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification"]
+# 註冊的 Claude 事件：前四個寫狀態，SessionEnd 觸發刪檔（清掉結束的 session）。
+CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"]
 
 
 # ---- Claude Code: settings.json 的多 hook --------------------------------
@@ -249,9 +249,11 @@ def main(argv=None, env=None):
     action = argv[0]
     track = _arg_value(argv, "--track")
     dispatch = _arg_value(argv, "--dispatch")
-    if not track or not dispatch:
-        print("!! --track <abs track.sh> 與 --dispatch <abs notify.sh> 為必填",
-              file=sys.stderr)
+    if not track:
+        print("!! --track <abs track.sh> 為必填", file=sys.stderr)
+        return 2
+    if action == "install" and not dispatch:
+        print("!! --dispatch <abs notify.sh> 為 install 時必填", file=sys.stderr)
         return 2
     claude_path, codex_path = _paths(env)
     claude_cmd = f"{track} claude"
