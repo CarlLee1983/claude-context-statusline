@@ -32,6 +32,28 @@ public enum RemainingQuotaPresenter {
         return remainingPercent(for: firstWindow)
     }
 
+    /// Collapses Antigravity's per-model windows into a single representative
+    /// window. Antigravity quota is currently a shared pool across every model
+    /// variant (e.g. the Flash/Pro reasoning-effort tiers move together), so the
+    /// dropdown shows one bar instead of one row per variant. The binding
+    /// constraint — the lowest remaining quota — represents the group and carries
+    /// its reset instant, so the soonest cooldown is what surfaces.
+    public static func mergedAntigravityWindow(
+        from windows: [UsageWindow],
+        label: String = "Gemini"
+    ) -> UsageWindow? {
+        guard let binding = windows.min(by: {
+            remainingPercent(for: $0) < remainingPercent(for: $1)
+        }) else { return nil }
+
+        return UsageWindow(
+            label: label,
+            percent: Double(remainingPercent(for: binding)),
+            kind: .available,
+            resetAt: binding.resetAt
+        )
+    }
+
     public static func fallbackTitle(for snapshots: [ProviderSnapshot]) -> String {
         guard !snapshots.isEmpty else { return "AI —" }
 

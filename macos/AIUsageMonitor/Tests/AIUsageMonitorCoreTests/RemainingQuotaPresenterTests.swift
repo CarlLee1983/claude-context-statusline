@@ -72,6 +72,35 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.emptyDetailTitle(for: withData) == nil)
     }
 
+    @Test("merges Antigravity model variants into the binding (lowest remaining) window")
+    func mergesAntigravityVariantsIntoBindingWindow() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let windows = [
+            UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 60, kind: .available, resetAt: reset),
+            UsageWindow(label: "Gemini 3.1 Pro (High)", percent: 60, kind: .available, resetAt: reset),
+            UsageWindow(label: "Gemini 2.0 Flash", percent: 100, kind: .available)
+        ]
+
+        let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: windows)
+
+        #expect(merged?.label == "Gemini")
+        #expect(merged.map { RemainingQuotaPresenter.remainingPercent(for: $0) } == 60)
+        // Carries the binding model's reset instant, not the 100% (no-reset) one.
+        #expect(merged?.resetAt == reset)
+    }
+
+    @Test("merged Antigravity window is 100% when all variants are full, and nil when empty")
+    func mergedAntigravityWindowEdgeCases() {
+        let allReady = [
+            UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 100, kind: .available),
+            UsageWindow(label: "Gemini 3.1 Pro (High)", percent: 100, kind: .available)
+        ]
+        let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: allReady)
+        #expect(merged.map { RemainingQuotaPresenter.remainingPercent(for: $0) } == 100)
+
+        #expect(RemainingQuotaPresenter.mergedAntigravityWindow(from: []) == nil)
+    }
+
     @Test("maps remaining percent to status tiers at the repo thresholds")
     func remainingTiers() {
         // critical: <= 10

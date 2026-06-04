@@ -122,6 +122,15 @@ All notable changes are documented here, following
   base64 PNG），取代先前手繪的拱形近似。
   Native app's Antigravity menu-bar icon now uses the official brand logo (the same base64 PNG as
   the SwiftBar plugin), replacing the hand-drawn arch approximation.
+- 原生 App 展開 Antigravity 區改為合併成單一一條 Gemini 用量，不再逐一列出每個模型變體
+  （Flash/Pro 各推理強度）。Antigravity 額度目前為通算共用池，故取剩餘最少的變體為代表
+  （帶其 reset 時間）；全部 100% 時維持「All models ready」訊息。新增可測試的純
+  `RemainingQuotaPresenter.mergedAntigravityWindow`。
+  Native app's expanded Antigravity section now collapses into a single Gemini usage bar instead of
+  listing every model variant (Flash/Pro reasoning tiers). Antigravity quota is currently a shared
+  pool, so the binding (lowest-remaining) variant represents the group, carrying its reset instant;
+  the "All models ready" line stays when every variant is full. Adds a unit-tested pure
+  `RemainingQuotaPresenter.mergedAntigravityWindow`.
 - 安裝/移除腳本強化前置檢查與錯誤處理（檢查 `python3` 與來源檔、容忍非法 JSON、印出備份路徑）。
   Hardened installer/uninstaller (preflight checks, invalid-JSON tolerance, backup paths).
 

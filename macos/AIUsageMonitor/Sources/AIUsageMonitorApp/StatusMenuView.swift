@@ -47,11 +47,16 @@ struct ProviderCardView: View {
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
             } else if isAntigravity {
-                let cooldownModels = snapshot.windows.filter { RemainingQuotaPresenter.remainingPercent(for: $0) < 100 }
-                let readyModels = snapshot.windows.filter { RemainingQuotaPresenter.remainingPercent(for: $0) == 100 }
-                
+                // Antigravity quota is a shared pool across model variants, so the
+                // dropdown collapses every Gemini variant into a single bar instead
+                // of listing each (model, reasoning-effort) row. When the whole pool
+                // is full we show a friendlier "all ready" line.
+                let allReady = snapshot.windows.allSatisfy {
+                    RemainingQuotaPresenter.remainingPercent(for: $0) == 100
+                }
+
                 VStack(alignment: .leading, spacing: 10) {
-                    if cooldownModels.isEmpty && !readyModels.isEmpty {
+                    if allReady {
                         HStack(spacing: 6) {
                             BrandIconView(name: "gemini", size: 12)
                             Text("All models ready (100% quota)")
@@ -60,24 +65,8 @@ struct ProviderCardView: View {
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
                         .padding(.vertical, 4)
-                    } else {
-                        ForEach(cooldownModels) { window in
-                            UsageProgressBarView(window: window)
-                        }
-                        
-                        if !readyModels.isEmpty {
-                            HStack(spacing: 4) {
-                                BrandIconView(name: "gemini", size: 10)
-                                Text("+ \(readyModels.count) \(readyModels.count == 1 ? "other model" : "other models") available with ")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(.secondary) +
-                                Text("100% quota")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundColor(.green)
-                            }
-                            .padding(.top, 4)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        }
+                    } else if let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: snapshot.windows) {
+                        UsageProgressBarView(window: merged)
                     }
                 }
             } else {
