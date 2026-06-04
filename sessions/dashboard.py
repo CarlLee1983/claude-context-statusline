@@ -79,3 +79,80 @@ def format_row(record, now):
     cli = record.get("cli", "?")
     stale = " (stale)" if is_stale(record, now) else ""
     return f"{glyph}{shape} {status:<8} {cli:<7} {base:<24} {age:>4}{stale}  {cwd}"
+
+
+# ---- curses 薄殼（不單測；永不崩潰）---------------------------------------
+HEADER = "  狀態      CLI     目錄                      時間  路徑"
+HELP = "  j/k 移動 · r 刷新 · Enter 複製路徑 · q 離開"
+
+
+def _copy_path(path):
+    try:
+        subprocess.run(["pbcopy"], input=path.encode(), timeout=2)
+    except Exception:
+        pass
+
+
+def _draw(stdscr, records, selected, now):
+    stdscr.erase()
+    height, width = stdscr.getmaxyx()
+    title = f" AI session 總覽（{len(records)}）"
+    stdscr.addnstr(0, 0, title.ljust(width - 1), width - 1, curses.A_BOLD)
+    stdscr.addnstr(1, 0, HEADER, width - 1, curses.A_DIM)
+    for i, rec in enumerate(records):
+        row = 2 + i
+        if row >= height - 1:
+            break
+        attr = curses.A_REVERSE if i == selected else curses.A_NORMAL
+        stdscr.addnstr(row, 0, format_row(rec, now).ljust(width - 1), width - 1, attr)
+    if not records:
+        stdscr.addnstr(3, 2, "（目前沒有 session；開個 Claude Code 跑跑看）", width - 3)
+    stdscr.addnstr(height - 1, 0, HELP[:width - 1], width - 1, curses.A_DIM)
+    stdscr.refresh()
+
+
+def _loop(stdscr, directory):
+    curses.curs_set(0)
+    stdscr.nodelay(True)
+    selected = 0
+    last_load = 0.0
+    records = []
+    while True:
+        now = time.time()
+        if now - last_load >= REFRESH_SEC:
+            records = sorted(load_records(directory), key=sort_key)
+            last_load = now
+            selected = max(0, min(selected, len(records) - 1))
+        _draw(stdscr, records, selected, int(now))
+        try:
+            ch = stdscr.getch()
+        except curses.error:
+            ch = -1
+        if ch in (ord("q"), 27):
+            return
+        if ch in (ord("j"), curses.KEY_DOWN):
+            selected = min(selected + 1, max(0, len(records) - 1))
+        elif ch in (ord("k"), curses.KEY_UP):
+            selected = max(selected - 1, 0)
+        elif ch == ord("r"):
+            last_load = 0.0
+        elif ch in (curses.KEY_ENTER, 10, 13) and records:
+            _copy_path(records[selected].get("cwd", ""))
+        else:
+            time.sleep(0.05)
+
+
+def main(argv=None, env=None):
+    env = os.environ if env is None else env
+    directory = default_dir(env)
+    try:
+        curses.wrapper(_loop, directory)
+    except KeyboardInterrupt:
+        pass
+    except Exception:
+        return 0   # 永不崩潰：離開時 curses.wrapper 已還原終端機
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
