@@ -287,3 +287,37 @@ class CodexDispatchTest(unittest.TestCase):
         self.assertTrue(c2)
         self.assertNotIn("sessions/notify.sh", removed)
         self.assertIn('model = "x"', removed)
+
+
+class OrchestrationTest(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.claude = os.path.join(self.root, "settings.json")
+        self.codex = os.path.join(self.root, "config.toml")
+        self.cmd = "/abs/sessions/track.sh claude"
+        self.codex_args = ["/abs/sessions/notify.sh", "codex"]
+
+    def test_install_then_uninstall_round_trip(self):
+        r1 = setup.run_install(self.claude, self.cmd, self.codex, self.codex_args)
+        self.assertTrue(all(x["status"] in ("ok", "skipped") for x in r1), r1)
+        with open(self.claude, encoding="utf-8") as f:
+            data = json.load(f)
+        for ev in setup.CLAUDE_EVENTS:
+            self.assertIn(ev, data["hooks"])
+        with open(self.codex, encoding="utf-8") as f:
+            self.assertIn("sessions/notify.sh", f.read())
+
+        setup.run_uninstall(self.claude, self.cmd, self.codex)
+        with open(self.claude, encoding="utf-8") as f:
+            self.assertEqual(json.load(f).get("hooks", {}), {})
+        with open(self.codex, encoding="utf-8") as f:
+            self.assertNotIn("sessions/notify.sh", f.read())
+
+    def test_bad_claude_json_aborts_that_target_only(self):
+        with open(self.claude, "w") as f:
+            f.write("{ not json")
+        results = setup.run_install(self.claude, self.cmd, self.codex, self.codex_args)
+        statuses = {r["target"]: r["status"] for r in results}
+        self.assertEqual(statuses[self.claude], "error")
+        self.assertEqual(statuses[self.codex], "ok")  # Codex 不受 Claude 失敗影響

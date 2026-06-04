@@ -134,3 +134,137 @@ def remove_codex_dispatch(text):
     if text.endswith("\n") and new and not new.endswith("\n"):
         new += "\n"
     return new, True
+
+
+# ---- 薄 I/O（與 bell-setup 同形，刻意各自獨立、不跨元件 import）-------------
+def _read_text(path):
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _backup(path):
+    if not os.path.exists(path):
+        return None
+    backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    shutil.copy(path, backup)
+    return backup
+
+
+def _write_text(path, text, mode=None):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    if mode is not None:
+        os.chmod(path, mode)
+
+
+def _result(target, status, detail=""):
+    return {"target": target, "status": status, "detail": detail}
+
+
+def _apply_json(path, apply_fn):
+    try:
+        text = _read_text(path)
+    except Exception as exc:
+        return _result(path, "error", f"讀取失敗：{exc}")
+    if text.strip():
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return _result(path, "error", "settings.json 非合法 JSON，未變動")
+        if not isinstance(data, dict):
+            return _result(path, "error", "settings.json 頂層非物件，未變動")
+    else:
+        data = {}
+    new = apply_fn(data)
+    if new == data:
+        return _result(path, "skipped", "已安裝或無需變更")
+    try:
+        _backup(path)
+        _write_text(path, json.dumps(new, indent=2, ensure_ascii=False) + "\n")
+    except Exception as exc:
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+def _apply_text(path, apply_fn, mode=None):
+    try:
+        text = _read_text(path)
+    except Exception as exc:
+        return _result(path, "error", f"讀取失敗：{exc}")
+    new, changed = apply_fn(text)
+    if not changed:
+        return _result(path, "skipped", "已安裝或已有手動設定")
+    keep_mode = mode
+    if keep_mode is None and os.path.exists(path):
+        keep_mode = os.stat(path).st_mode & 0o777
+    try:
+        _backup(path)
+        _write_text(path, new, keep_mode)
+    except Exception as exc:
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+# ---- orchestration ---------------------------------------------------------
+def run_install(claude_path, claude_cmd, codex_path, codex_args):
+    return [
+        _apply_json(claude_path, lambda d: apply_claude_hooks(d, claude_cmd)),
+        _apply_text(codex_path, lambda t: apply_codex_dispatch(t, codex_args), mode=0o600),
+    ]
+
+
+def run_uninstall(claude_path, claude_cmd, codex_path):
+    return [
+        _apply_json(claude_path, lambda d: remove_claude_hooks(d, claude_cmd)[0]),
+        _apply_text(codex_path, remove_codex_dispatch, mode=0o600),
+    ]
+
+
+# ---- 路徑解析 + main --------------------------------------------------------
+def _paths(env):
+    claude = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    codex = env.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+    return (os.path.join(claude, "settings.json"),
+            os.path.join(codex, "config.toml"))
+
+
+def _arg_value(argv, flag):
+    if flag in argv:
+        i = argv.index(flag)
+        if i + 1 < len(argv):
+            return argv[i + 1]
+    return None
+
+
+def main(argv=None, env=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    env = os.environ if env is None else env
+    if not argv or argv[0] not in ("install", "uninstall"):
+        print("usage: sessions-setup install|uninstall --track <abs> --dispatch <abs>",
+              file=sys.stderr)
+        return 2
+    action = argv[0]
+    track = _arg_value(argv, "--track")
+    dispatch = _arg_value(argv, "--dispatch")
+    if not track or not dispatch:
+        print("!! --track <abs track.sh> 與 --dispatch <abs notify.sh> 為必填",
+              file=sys.stderr)
+        return 2
+    claude_path, codex_path = _paths(env)
+    claude_cmd = f"{track} claude"
+    codex_args = [dispatch, "codex"]
+    if action == "install":
+        results = run_install(claude_path, claude_cmd, codex_path, codex_args)
+    else:
+        results = run_uninstall(claude_path, claude_cmd, codex_path)
+    for r in results:
+        mark = {"ok": "✓", "skipped": "•", "error": "!!"}[r["status"]]
+        print(f"   {mark} {r['target']} {r['detail']}".rstrip())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
