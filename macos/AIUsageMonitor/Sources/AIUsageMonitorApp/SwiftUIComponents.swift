@@ -82,6 +82,7 @@ struct GeminiSparkleShape: Shape {
         let size = min(rect.width, rect.height)
         let offsetX = rect.minX + (rect.width - size) / 2
         let offsetY = rect.minY + (rect.height - size) / 2
+        // Centered square rectangle to enforce 1:1 aspect ratio and prevent stretching
         let squareRect = CGRect(x: offsetX, y: offsetY, width: size, height: size)
         
         var path = Path()
