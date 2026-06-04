@@ -12,6 +12,9 @@ class AiUsageMonitor < Formula
     cd "macos/AIUsageMonitor" do
       ENV["CONFIGURATION"] = "release"
       ENV["APP_VERSION"] = version.to_s
+      # swiftpm 的 manifest sandbox 在 brew 源碼安裝環境會 sandbox_apply 失敗，停用之。
+      # swiftpm's manifest sandbox fails (sandbox_apply) under brew's source build; disable it.
+      ENV["SWIFT_DISABLE_SANDBOX"] = "1"
       system "./Scripts/build-app.sh"
       prefix.install ".build/AIUsageMonitor.app"
     end

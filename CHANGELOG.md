@@ -9,6 +9,17 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-04
+
+### Fixed 修正
+- Homebrew 從源碼安裝 `ai-usage-monitor` 時,swiftpm 以 `sandbox-exec` 編譯 manifest 會
+  `sandbox_apply: Operation not permitted` 失敗。`build-app.sh` 新增 `SWIFT_DISABLE_SANDBOX`
+  開關(預設不啟用,本機開發行為不變),formula 安裝時設為 `1` 改傳 `swift build --disable-sandbox`。
+  Fix `brew install ai-usage-monitor` from source failing with
+  `sandbox-exec: sandbox_apply: Operation not permitted` during swiftpm manifest compilation.
+  `build-app.sh` gains a `SWIFT_DISABLE_SANDBOX` toggle (off by default; local dev unchanged);
+  the formula sets it to `1` to pass `swift build --disable-sandbox`.
+
 ## [0.3.0] - 2026-06-04
 
 ### Added 新增

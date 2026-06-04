@@ -11,7 +11,18 @@ MACOS_DIR="$BUNDLE_DIR/Contents/MacOS"
 RESOURCES_DIR="$BUNDLE_DIR/Contents/Resources"
 
 cd "$ROOT"
-swift build -c "$CONFIGURATION" --product "$PRODUCT_NAME"
+# swiftpm 在受限環境（如 Homebrew 從源碼安裝）會用 sandbox-exec 編譯 manifest，
+# 在某些機器上會 `sandbox_apply: Operation not permitted` 而失敗。設 SWIFT_DISABLE_SANDBOX=1
+# 改為跳過 swiftpm sandbox。本機一般開發不需設定，行為不變。
+# swiftpm sandboxes manifest compilation via sandbox-exec, which fails with
+# `sandbox_apply: Operation not permitted` in restricted environments (e.g. a
+# Homebrew source build). Set SWIFT_DISABLE_SANDBOX=1 to skip the swiftpm sandbox.
+# Unset for normal local dev — behavior is unchanged.
+SWIFT_BUILD_FLAGS=(-c "$CONFIGURATION" --product "$PRODUCT_NAME")
+if [ -n "${SWIFT_DISABLE_SANDBOX:-}" ]; then
+  SWIFT_BUILD_FLAGS+=(--disable-sandbox)
+fi
+swift build "${SWIFT_BUILD_FLAGS[@]}"
 
 rm -rf "$BUNDLE_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
