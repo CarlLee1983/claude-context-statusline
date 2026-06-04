@@ -126,7 +126,8 @@ back to `bell/notify.sh`. To keep Codex bell notifications, run afterwards:
 | `j` / `↓` | move down |
 | `k` / `↑` | move up |
 | `r` | force immediate refresh |
-| `Enter` | copy the selected session's working directory path (`pbcopy`) |
+| `Enter` | jump to the selected session's Ghostty tab (Phase 2, see below) |
+| `c` | copy the selected session's working directory path (`pbcopy`) |
 | `q` | quit |
 
 The TUI auto-polls the state directory every second; `r` forces an immediate re-read.
@@ -156,14 +157,18 @@ Tests cover: event-to-status mapping, `sanitize_id`, `merge_record`,
 Codex dispatch merge (no notify / bell-notify upgrade / foreign notify skipped), and
 dashboard pure logic (`load_records`, `sort_key`, `format_row`, `is_stale`, `humanize`).
 
-## Phase 2 (future, not yet implemented)
+## Phase 2: One-key switch (native Ghostty)
 
-The current release is **phase 1** (read-only status tracking). The planned **phase 2**
-(triggered by `$TMUX` detection) will add, in a tmux environment:
+Select a row in the dashboard and press `Enter` to focus the Ghostty tab/window
+where that AI session runs. Press `c` to copy the path.
 
-- `select-window` to jump directly to a session's tab
-- `capture-pane` to show a preview of recent output
-- tmux ↔ Ghostty BEL passthrough
-
-The status semantics (hook → state) are identical across both phases; phase 2 only
-adds functionality at the display and navigation layers.
+- **Requires** Ghostty 1.3+ (uses its built-in AppleScript dictionary). The first
+  switch triggers a macOS Automation permission prompt ("Ghostty wants to control
+  Ghostty"); approve it once.
+- **Matching**: maps a session to a Ghostty tab by working directory (cwd); when a
+  directory has several tabs, a title heuristic prefers the CLI session tab
+  (best-effort).
+- **Limitation**: no live preview of tab contents (no equivalent command in the
+  Ghostty dictionary — a deliberate trade-off).
+- **Never crashes**: missing tab, denied permission, or Ghostty not running only
+  shows a footer hint; the TUI keeps running.

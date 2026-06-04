@@ -158,6 +158,8 @@ AI CLI 跑完一輪時，透過終端機 BEL 觸發 Ghostty 把分頁或視窗�
 
 完整安裝與架構說明請見 **[sessions/README.md](sessions/README.md)**。
 
+> 在 Ghostty 下還能於儀表板按 `Enter` 一鍵切到目標 session 的分頁（階段二，原生 AppleScript）。
+
 ```bash
 ./sessions/install.sh
 ./sessions/dashboard.py   # 開啟 TUI

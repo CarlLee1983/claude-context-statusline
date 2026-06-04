@@ -112,7 +112,8 @@ Codex 的 `config.toml` 頂層只有一個 `notify` 槽，若你已裝 bell，�
 | `j` / `↓` | 往下移動 |
 | `k` / `↑` | 往上移動 |
 | `r` | 立即刷新 |
-| `Enter` | 複製選取 session 的工作目錄路徑（`pbcopy`） |
+| `Enter` | 跳到選取 session 所在的 Ghostty 分頁（階段二，見下方） |
+| `c` | 複製選取 session 的工作目錄路徑（`pbcopy`） |
 | `q` | 離開 |
 
 TUI 每秒自動輪詢狀態目錄；r 可強制立刻重讀。狀態欄用 **emoji + 形狀角標**雙重編碼（色盲友善）。
@@ -138,12 +139,14 @@ python3 -m unittest discover -s tests -v
 Claude hook 合併（空檔/既有/冪等）、Codex dispatch 合併（無 notify / bell notify 升級 / 外來 notify 略過）、
 dashboard 純邏輯（`load_records`、`sort_key`、`format_row`、`is_stale`、`humanize`）。
 
-## 階段二（後續計畫，尚未實作）
+## 階段二：一鍵切換（Ghostty 原生）
 
-目前為**階段一**（唯讀狀態追蹤）。後續規劃的**階段二**（`$TMUX` 偵測）將在 tmux 環境中增加：
+在儀表板選一列按 `Enter`，直接 focus 到該 AI session 所在的 Ghostty 分頁/視窗。
+`c` 鍵複製路徑。
 
-- `select-window` 直接切換到目標 session 的分頁
-- `capture-pane` 擷取 session 最近輸出的預覽
-- tmux ↔ Ghostty BEL passthrough
-
-狀態語意（hook → 狀態）在兩階段完全相同；階段二只是在顯示層與操作層加功能。
+- **需求**：Ghostty 1.3+（使用其內建 AppleScript 字典）。首次切換會跳出 macOS
+  自動化授權（「Ghostty 想控制 Ghostty」），核准一次即可。
+- **配對方式**：以 session 的工作目錄（cwd）對應 Ghostty 分頁；同一目錄有多個分頁時，
+  以標題啟發式優先選出 CLI session 分頁（best-effort）。
+- **限制**：不提供即時預覽分頁內容（Ghostty 字典無對應指令，刻意取捨）。
+- **永不崩潰**：找不到分頁、權限被拒、Ghostty 沒開等情況只在底列顯示提示，不中斷 TUI。
