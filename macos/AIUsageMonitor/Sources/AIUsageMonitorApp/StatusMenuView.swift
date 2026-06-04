@@ -51,23 +51,33 @@ struct ProviderCardView: View {
                 let readyModels = snapshot.windows.filter { RemainingQuotaPresenter.remainingPercent(for: $0) == 100 }
                 
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(cooldownModels) { window in
-                        UsageProgressBarView(window: window)
-                    }
-                    
-                    if !readyModels.isEmpty {
-                        HStack(spacing: 4) {
-                            BrandIconView(name: "gemini")
-                                .frame(width: 10, height: 10)
-                            Text("+ \(readyModels.count) \(readyModels.count == 1 ? "other model" : "other models") available with ")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary) +
-                            Text("100% quota")
-                                .font(.system(size: 10, weight: .semibold))
+                    if cooldownModels.isEmpty && !readyModels.isEmpty {
+                        HStack(spacing: 6) {
+                            BrandIconView(name: "gemini", size: 12)
+                            Text("All models ready (100% quota)")
+                                .font(.system(size: 11, weight: .medium))
                                 .foregroundColor(.green)
                         }
-                        .padding(.top, 4)
                         .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.vertical, 4)
+                    } else {
+                        ForEach(cooldownModels) { window in
+                            UsageProgressBarView(window: window)
+                        }
+                        
+                        if !readyModels.isEmpty {
+                            HStack(spacing: 4) {
+                                BrandIconView(name: "gemini", size: 10)
+                                Text("+ \(readyModels.count) \(readyModels.count == 1 ? "other model" : "other models") available with ")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.secondary) +
+                                Text("100% quota")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(.green)
+                            }
+                            .padding(.top, 4)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                        }
                     }
                 }
             } else {
