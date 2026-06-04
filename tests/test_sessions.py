@@ -456,3 +456,59 @@ class AntigravityTrackTest(unittest.TestCase):
         self.assertEqual(sid, "c")
         self.assertEqual(cwd, "")
         self.assertIsNone(tp)
+
+
+class AntigravityHandlerTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+
+    def _records(self):
+        out = []
+        for n in os.listdir(self.dir):
+            if n.endswith(".json"):
+                with open(os.path.join(self.dir, n), encoding="utf-8") as f:
+                    out.append(json.load(f))
+        return out
+
+    def test_posttooluse_writes_running(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "PostToolUse", payload, now=100)
+        recs = self._records()
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["cli"], "antigravity")
+        self.assertEqual(recs[0]["status"], "running")
+        self.assertEqual(recs[0]["cwd"], "/p")
+        self.assertEqual(recs[0]["session_id"], "c1")
+
+    def test_stop_writes_idle(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "Stop", payload, now=100)
+        self.assertEqual(self._records()[0]["status"], "idle")
+
+    def test_unknown_event_ignored(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "PreToolUse", payload, now=100)
+        self.assertEqual(self._records(), [])
+
+    def test_no_identity_ignored(self):
+        track._handle_antigravity(self.dir, "Stop", json.dumps({}), now=100)
+        self.assertEqual(self._records(), [])
+
+    def test_writes_transcript_path_when_present(self):
+        payload = json.dumps({
+            "conversationId": "c1",
+            "workspacePaths": ["/p"],
+            "transcriptPath": "/t.jsonl",
+        })
+        track._handle_antigravity(self.dir, "Stop", payload, now=100)
+        self.assertEqual(self._records()[0].get("transcript_path"), "/t.jsonl")
+
+    def test_main_dispatches_antigravity(self):
+        payload = json.dumps({"conversationId": "c9", "workspacePaths": ["/q"]})
+        track.main(argv=["antigravity", "Stop"], stdin=io.StringIO(payload),
+                   env={"AI_SESSIONS_DIR": self.dir}, now=200)
+        recs = self._records()
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["session_id"], "c9")
+        self.assertEqual(recs[0]["status"], "idle")

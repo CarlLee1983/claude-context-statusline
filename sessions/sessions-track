@@ -145,6 +145,22 @@ def _handle_codex(directory, payload, cwd, now):
                  {"cli": "codex", "status": "idle", "cwd": cwd}, now)
 
 
+def _handle_antigravity(directory, event, stdin_text, now):
+    status = antigravity_event_to_status(event)
+    if status is None:
+        return
+    data = json.loads(stdin_text)            # 壞 JSON → 例外 → __main__ 靜默吞
+    if not isinstance(data, dict):
+        return
+    session_id, cwd, tp = antigravity_fields(data)
+    if not (data.get("conversationId") or cwd):
+        return
+    fields = {"cli": "antigravity", "status": status, "cwd": cwd}
+    if tp:
+        fields["transcript_path"] = tp
+    write_record(directory, session_id, fields, now)
+
+
 def main(argv=None, stdin=None, env=None, now=None, cwd=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     env = os.environ if env is None else env
@@ -158,6 +174,10 @@ def main(argv=None, stdin=None, env=None, now=None, cwd=None):
     elif src == "codex":
         payload = argv[1] if len(argv) > 1 else ""
         _handle_codex(directory, payload, cwd, now)
+    elif src == "antigravity":
+        event = argv[1] if len(argv) > 1 else ""
+        text = (stdin if stdin is not None else sys.stdin).read()
+        _handle_antigravity(directory, event, text, now)
     return 0
 
 
