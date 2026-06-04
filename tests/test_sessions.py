@@ -148,3 +148,33 @@ class TrackShTest(unittest.TestCase):
     def test_no_args_does_not_error(self):
         proc = self._run([])
         self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stderr, b"")
+
+
+class NotifyShTest(unittest.TestCase):
+    NOTIFY = os.path.join(_DIR, "notify.sh")
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+        fd, self.tty = tempfile.mkstemp(suffix=".tty")
+        os.close(fd)
+        self.addCleanup(os.remove, self.tty)
+
+    def _run(self, payload):
+        return subprocess.run(
+            ["/bin/sh", self.NOTIFY, "codex", payload],
+            env={**os.environ, "AI_SESSIONS_DIR": self.dir, "BELL_TTY": self.tty},
+            capture_output=True, timeout=10)
+
+    def test_codex_complete_fans_out_to_bell_and_state(self):
+        proc = self._run('{"type":"agent-turn-complete","last-assistant-message":"hi"}')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        with open(self.tty, "rb") as f:
+            self.assertIn(b"\a", f.read())           # bell concern
+        self.assertEqual(len(os.listdir(self.dir)), 1)  # sessions concern
+
+    def test_non_complete_event_exits_zero_no_state(self):
+        proc = self._run('{"type":"task-started"}')
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(os.listdir(self.dir), [])

@@ -5,5 +5,6 @@
 #   track.sh codex <payload> Codex notify：payload 為 JSON 字串
 # 任何失敗（含 python3 缺席）都吞掉並 exit 0。
 dir=$(cd "$(dirname "$0")" 2>/dev/null && pwd)
+[ -z "$dir" ] && exit 0
 { /usr/bin/python3 "$dir/sessions-track" "$@"; } 2>/dev/null || true
 exit 0
