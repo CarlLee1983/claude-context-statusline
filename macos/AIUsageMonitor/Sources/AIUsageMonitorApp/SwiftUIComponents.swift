@@ -141,9 +141,11 @@ struct AntigravityLogoView: View {
 // 5. Brand Icon View Switcher
 public struct BrandIconView: View {
     public let name: String
+    public let size: CGFloat
     
-    public init(name: String) {
+    public init(name: String, size: CGFloat = 16) {
         self.name = name
+        self.size = size
     }
     
     public var body: some View {
@@ -163,7 +165,7 @@ public struct BrandIconView: View {
                     .fill(Color.secondary)
             }
         }
-        .frame(width: 16, height: 16)
+        .frame(width: size, height: size)
     }
 }
 
