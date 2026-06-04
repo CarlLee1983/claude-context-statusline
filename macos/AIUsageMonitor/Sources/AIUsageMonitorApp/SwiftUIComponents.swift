@@ -4,7 +4,7 @@ import AIUsageMonitorCore
 // 1. Claude Spark Shape
 struct ClaudeLogoShape: Shape {
     func path(in rect: CGRect) -> Path {
-        let viewBox: CGFloat = 24
+        let viewBox = ClaudeLogo.viewBox
         let scale = min(rect.width, rect.height) / viewBox
         let drawn = viewBox * scale
         let offsetX = rect.minX + (rect.width - drawn) / 2
@@ -18,7 +18,7 @@ struct ClaudeLogoShape: Shape {
         }
 
         var path = Path()
-        let segments = SVGPathParser.parse(ClaudeLogo.svgPath)
+        let segments = ClaudeLogo.parsedSegments
         for segment in segments {
             switch segment {
             case let .move(point):
@@ -113,8 +113,7 @@ struct GeminiLogoView: View {
 // 4. Antigravity Logo View
 struct AntigravityLogoView: View {
     var body: some View {
-        if let data = Data(base64Encoded: AntigravityLogo.base64),
-           let nsImage = NSImage(data: data) {
+        if let nsImage = AntigravityLogo.image {
             Image(nsImage: nsImage)
                 .resizable()
                 .aspectRatio(contentMode: .fit)

@@ -12,7 +12,7 @@ import Foundation
 /// Y-flip); callers map them into a target rect. Kept pure so it is unit-testable
 /// in `AIUsageMonitorCore`; the AppKit shell turns segments into an `NSBezierPath`.
 public enum SVGPathParser {
-    public enum Segment: Equatable {
+    public enum Segment: Equatable, Sendable {
         case move(CGPoint)
         case line(CGPoint)
         case curve(to: CGPoint, control1: CGPoint, control2: CGPoint)
