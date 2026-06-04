@@ -18,6 +18,11 @@ final class StatusMenuController {
     private var isRefreshing = false
     private var refreshTask: Task<Void, Never>?
 
+    private let menu = NSMenu()
+    private var hostingView: NSHostingView<StatusMenuView>?
+    private var loginItem: NSMenuItem?
+    private var refreshItem: NSMenuItem?
+
     init(provider: UsageSnapshotProviding) {
         self.provider = provider
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -29,7 +34,8 @@ final class StatusMenuController {
         rebuildMenu()
         refreshTask = Task { [weak self] in
             while !Task.isCancelled {
-                await self?.refresh()
+                guard let self else { break }
+                await self.refresh()
                 try? await Task.sleep(for: Self.refreshInterval)
             }
         }
@@ -65,33 +71,42 @@ final class StatusMenuController {
     }
 
     private func rebuildMenu() {
-        let menu = NSMenu()
+        if let hostingView = self.hostingView {
+            hostingView.rootView = StatusMenuView(snapshots: snapshots)
+            hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: hostingView.fittingSize.height)
+        } else {
+            let view = StatusMenuView(snapshots: snapshots)
+            let hv = NSHostingView(rootView: view)
+            hv.frame = NSRect(x: 0, y: 0, width: 320, height: hv.fittingSize.height)
+            self.hostingView = hv
 
-        let view = StatusMenuView(snapshots: snapshots)
-        let hostingView = NSHostingView(rootView: view)
-        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: hostingView.fittingSize.height)
+            let customHostItem = NSMenuItem()
+            customHostItem.view = hv
+            menu.addItem(customHostItem)
 
-        let customHostItem = NSMenuItem()
-        customHostItem.view = hostingView
-        menu.addItem(customHostItem)
+            menu.addItem(.separator())
 
-        menu.addItem(.separator())
+            let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
+            loginItem.target = self
+            self.loginItem = loginItem
+            menu.addItem(loginItem)
 
-        let loginItem = NSMenuItem(title: "Launch at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
-        loginItem.target = self
-        loginItem.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
-        menu.addItem(loginItem)
+            let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshMenuItemSelected), keyEquivalent: "r")
+            refreshItem.target = self
+            self.refreshItem = refreshItem
+            menu.addItem(refreshItem)
 
-        let refreshItem = NSMenuItem(title: isRefreshing ? "Refreshing…" : "Refresh", action: #selector(refreshMenuItemSelected), keyEquivalent: "r")
-        refreshItem.target = self
-        refreshItem.isEnabled = !isRefreshing
-        menu.addItem(refreshItem)
+            let quitItem = NSMenuItem(title: "Quit", action: #selector(quitMenuItemSelected), keyEquivalent: "q")
+            quitItem.target = self
+            menu.addItem(quitItem)
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quitMenuItemSelected), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
+            statusItem.menu = menu
+        }
 
-        statusItem.menu = menu
+        // Update menu items in-place
+        loginItem?.state = (SMAppService.mainApp.status == .enabled) ? .on : .off
+        refreshItem?.title = isRefreshing ? "Refreshing…" : "Refresh"
+        refreshItem?.isEnabled = !isRefreshing
     }
 
     @objc private func refreshMenuItemSelected() {
