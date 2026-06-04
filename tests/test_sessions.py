@@ -153,6 +153,16 @@ class TrackShTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stderr, b"")
 
+    def test_antigravity_posttooluse_writes_record(self):
+        payload = json.dumps({"conversationId": "agy1", "workspacePaths": ["/p"]})
+        proc = self._run(["antigravity", "PostToolUse"], stdin=payload.encode())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.dir, "agy1.json")))
+        with open(os.path.join(self.dir, "agy1.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        self.assertEqual(rec["cli"], "antigravity")
+        self.assertEqual(rec["status"], "running")
+
 
 class NotifyShTest(unittest.TestCase):
     NOTIFY = os.path.join(_DIR, "notify.sh")
@@ -423,3 +433,149 @@ class PickTerminalTest(unittest.TestCase):
         self.assertIsNone(ghostty.pick_terminal({"cli": "claude"}, []))
         self.assertIsNone(ghostty.pick_terminal({"cwd": ""}, [{"id": "A", "cwd": "", "title": "x"}]))
         self.assertIsNone(ghostty.pick_terminal({"cwd": "/a/b/proj"}, None))
+
+
+class AntigravityTrackTest(unittest.TestCase):
+    def test_event_to_status(self):
+        self.assertEqual(track.antigravity_event_to_status("PostToolUse"), "running")
+        self.assertEqual(track.antigravity_event_to_status("Stop"), "idle")
+        self.assertIsNone(track.antigravity_event_to_status("PreToolUse"))
+        self.assertIsNone(track.antigravity_event_to_status(""))
+
+    def test_derive_id_from_cwd(self):
+        self.assertEqual(track.derive_antigravity_id("/Users/x/p"), "antigravity:/Users/x/p")
+
+    def test_fields_prefers_conversation_id(self):
+        data = {"conversationId": "conv-1",
+                "workspacePaths": ["/Users/x/p"],
+                "transcriptPath": "/t.jsonl"}
+        sid, cwd, tp = track.antigravity_fields(data)
+        self.assertEqual(sid, "conv-1")
+        self.assertEqual(cwd, "/Users/x/p")
+        self.assertEqual(tp, "/t.jsonl")
+
+    def test_fields_falls_back_to_cwd_derived_id(self):
+        data = {"workspacePaths": ["/Users/x/p"]}
+        sid, cwd, tp = track.antigravity_fields(data)
+        self.assertEqual(sid, "antigravity:/Users/x/p")
+        self.assertEqual(cwd, "/Users/x/p")
+        self.assertIsNone(tp)
+
+    def test_fields_empty_workspacepaths(self):
+        sid, cwd, tp = track.antigravity_fields({"conversationId": "c"})
+        self.assertEqual(sid, "c")
+        self.assertEqual(cwd, "")
+        self.assertIsNone(tp)
+
+
+class AntigravityHandlerTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
+
+    def _records(self):
+        out = []
+        for n in os.listdir(self.dir):
+            if n.endswith(".json"):
+                with open(os.path.join(self.dir, n), encoding="utf-8") as f:
+                    out.append(json.load(f))
+        return out
+
+    def test_posttooluse_writes_running(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "PostToolUse", payload, now=100)
+        recs = self._records()
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["cli"], "antigravity")
+        self.assertEqual(recs[0]["status"], "running")
+        self.assertEqual(recs[0]["cwd"], "/p")
+        self.assertEqual(recs[0]["session_id"], "c1")
+
+    def test_stop_writes_idle(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "Stop", payload, now=100)
+        self.assertEqual(self._records()[0]["status"], "idle")
+
+    def test_unknown_event_ignored(self):
+        payload = json.dumps({"conversationId": "c1", "workspacePaths": ["/p"]})
+        track._handle_antigravity(self.dir, "PreToolUse", payload, now=100)
+        self.assertEqual(self._records(), [])
+
+    def test_no_identity_ignored(self):
+        track._handle_antigravity(self.dir, "Stop", json.dumps({}), now=100)
+        self.assertEqual(self._records(), [])
+
+    def test_writes_transcript_path_when_present(self):
+        payload = json.dumps({
+            "conversationId": "c1",
+            "workspacePaths": ["/p"],
+            "transcriptPath": "/t.jsonl",
+        })
+        track._handle_antigravity(self.dir, "Stop", payload, now=100)
+        self.assertEqual(self._records()[0].get("transcript_path"), "/t.jsonl")
+
+    def test_main_dispatches_antigravity(self):
+        payload = json.dumps({"conversationId": "c9", "workspacePaths": ["/q"]})
+        track.main(argv=["antigravity", "Stop"], stdin=io.StringIO(payload),
+                   env={"AI_SESSIONS_DIR": self.dir}, now=200)
+        recs = self._records()
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["session_id"], "c9")
+        self.assertEqual(recs[0]["status"], "idle")
+
+
+class AntigravitySetupTest(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.plugin_dir = os.path.join(self.root, "plugins", "ai-sessions")
+        self.track = "/abs/sessions/track.sh"
+
+    def test_plugin_files_content(self):
+        files = setup.antigravity_plugin_files(self.track)
+        self.assertIn("plugin.json", files)
+        self.assertIn("hooks.json", files)
+        self.assertIn('"name": "ai-sessions"', files["plugin.json"])
+        hooks = json.loads(files["hooks.json"])["hooks"]
+        self.assertEqual(hooks["PostToolUse"][0]["hooks"][0]["command"],
+                         "/abs/sessions/track.sh antigravity PostToolUse")
+        self.assertEqual(hooks["Stop"][0]["hooks"][0]["command"],
+                         "/abs/sessions/track.sh antigravity Stop")
+
+    def test_apply_creates_then_idempotent_then_remove(self):
+        r1 = setup._apply_antigravity(self.plugin_dir, self.track)
+        self.assertEqual(r1["status"], "ok")
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "plugin.json")))
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "hooks.json")))
+        r2 = setup._apply_antigravity(self.plugin_dir, self.track)
+        self.assertEqual(r2["status"], "skipped")
+        r3 = setup._remove_antigravity(self.plugin_dir)
+        self.assertEqual(r3["status"], "ok")
+        self.assertFalse(os.path.exists(self.plugin_dir))
+        r4 = setup._remove_antigravity(self.plugin_dir)
+        self.assertEqual(r4["status"], "skipped")
+
+    def test_run_install_includes_antigravity_when_dir_given(self):
+        claude = os.path.join(self.root, "settings.json")
+        codex = os.path.join(self.root, "config.toml")
+        results = setup.run_install(claude, "/t/track.sh claude", codex,
+                                    ["/t/notify.sh", "codex"],
+                                    agy_plugin_dir=self.plugin_dir,
+                                    track_path="/t/track.sh")
+        self.assertEqual(len(results), 3)
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "hooks.json")))
+        results_u = setup.run_uninstall(claude, "/t/track.sh claude", codex,
+                                        agy_plugin_dir=self.plugin_dir)
+        self.assertEqual(len(results_u), 3)
+        self.assertFalse(os.path.exists(self.plugin_dir))
+
+    def test_run_install_without_agy_gives_two_results(self):
+        claude = os.path.join(self.root, "settings.json")
+        codex = os.path.join(self.root, "config.toml")
+        results = setup.run_install(claude, "/t/track.sh claude", codex,
+                                    ["/t/notify.sh", "codex"])
+        self.assertEqual(len(results), 2)
+
+    def test_paths_resolves_gemini_dir(self):
+        claude, codex, agy = setup._paths({"GEMINI_CONFIG_DIR": "/g"})
+        self.assertEqual(agy, "/g/plugins/ai-sessions")

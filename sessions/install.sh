@@ -7,6 +7,8 @@
 #       hook → sessions/track.sh claude（SessionEnd 結束時清除狀態檔）
 #   (2) Codex config.toml 的 notify 指向 sessions/notify.sh（合併派發器：同時觸發
 #       bell 與狀態追蹤）。無 notify → 新增；bell 既有 notify → 升級；外來 → 略過。
+#   (3) Antigravity（agy）安裝專屬 plugin ~/.gemini/config/plugins/ai-sessions/
+#       （plugin.json + hooks.json）→ sessions/track.sh antigravity（PostToolUse/Stop）。
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,7 +29,7 @@ fi
 chmod +x "$TRACK" "$DISPATCH" "$SETUP" "$SCRIPT_DIR/sessions-track"
 if [ -f "$SCRIPT_DIR/dashboard.py" ]; then chmod +x "$SCRIPT_DIR/dashboard.py"; fi
 
-echo "==> 併入設定 / merging config (Claude / Codex)"
+echo "==> 併入設定 / merging config (Claude / Codex / Antigravity)"
 "$PYTHON" "$SETUP" install --track "$TRACK" --dispatch "$DISPATCH"
 
 cat <<'EOF'
@@ -40,4 +42,7 @@ cat <<'EOF'
  • 若上面 Codex 那行標「•（略過）」表示你已有自訂 notify；請手動指到
    sessions/notify.sh（它會同時觸發 bell 與狀態追蹤）。
    If Codex shows "• (skipped)", point your existing notify at sessions/notify.sh.
+ • Antigravity 已安裝 agy plugin（~/.gemini/config/plugins/ai-sessions/）；
+   gemini 設定目錄可用 GEMINI_CONFIG_DIR 覆寫。
+   Antigravity agy plugin installed; override the gemini dir with GEMINI_CONFIG_DIR.
 EOF

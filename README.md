@@ -153,8 +153,8 @@ AI CLI 跑完一輪時，透過終端機 BEL 觸發 Ghostty 把分頁或視窗�
 ## 5. Session 儀表板（`sessions/`）
 
 同時跑多個 Ghostty 分頁的 AI CLI 時，以 curses TUI 一次顯示所有 session 的即時狀態
-（running / waiting / idle）及各 session 的工作目錄。支援 Claude Code（四個 hook 事件）
-與 Codex（notify）；純標準庫，不讀用量數字，不讀速率限制。
+（running / waiting / idle）及各 session 的工作目錄。追蹤 Claude Code、Codex 與
+Antigravity 三種 AI CLI 的 session 狀態；純標準庫，不讀用量數字，不讀速率限制。
 
 完整安裝與架構說明請見 **[sessions/README.md](sessions/README.md)**。
 

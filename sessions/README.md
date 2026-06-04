@@ -12,13 +12,13 @@
 ## 架構
 
 ```
-[Claude Code hooks]        [Codex notify]
-  SessionStart               agent-turn-complete
-  UserPromptSubmit                │
-  Notification                    │
-  Stop / SessionEnd               │
-         │                        ▼
-         └──────→  sessions/track.sh  (薄殼，永不崩潰)
+[Claude Code hooks]      [Codex notify]        [Antigravity plugin]
+  SessionStart             agent-turn-complete    PostToolUse
+  UserPromptSubmit               │                Stop
+  Notification                   │                  │
+  Stop / SessionEnd              │                  │
+         │                       ▼                  ▼
+         └────────────→  sessions/track.sh  (薄殼，永不崩潰)
                          │
                          ▼
               ~/.cache/ai-sessions/<id>.json   (可用 AI_SESSIONS_DIR 覆寫)
@@ -39,6 +39,8 @@
 | `Stop` | → `idle` |
 | `SessionEnd` | 刪除記錄 |
 | Codex `agent-turn-complete` | → `idle` |
+| Antigravity `PostToolUse` | → `running` |
+| Antigravity `Stop` | → `idle` |
 
 TUI 依此順序排列：`waiting`（最上）→ `running` → `idle`（最下）；同狀態內再依最新更新時間倒序。
 超過 30 分鐘未更新的 session 標示為 `(stale)`。
@@ -47,10 +49,21 @@ TUI 依此順序排列：`waiting`（最上）→ `running` → `idle`（最下�
 
 Codex 只發出一種 notify 事件（`agent-turn-complete`），所以 Codex session 永遠只會顯示 `idle` + 最後完成時間，**不會有** `running` / `waiting` 狀態。
 
+## Antigravity 支援與限制
+
+Antigravity（`agy`，gemini-cli 系）以一個專屬 agy plugin 追蹤：安裝會建立
+`~/.gemini/config/plugins/ai-sessions/`（`plugin.json` + `hooks.json`），把 `PostToolUse`
+（工作中→`running`）與 `Stop`（完成→`idle`）導到 `track.sh`。
+
+- **狀態粒度**：只有 `running` / `idle`，**沒有** `waiting`（agy 不送對應事件）。
+- **無建檔/刪檔事件**：記錄於首個事件延遲建立，靠 `(stale)` 逾時清理（同 Codex）。
+- **需求**：agy 支援 plugin hooks（`~/.gemini/config/plugins/*/hooks.json`）。
+- **同步 hook**：`PostToolUse` 為同步（`async: false`），每次工具呼叫會等 `track.sh` 跑完（約 30ms）。
+
 ## 需求
 
 - macOS，系統內建 `/usr/bin/python3`（免額外安裝）
-- Claude Code 和/或 Codex
+- Claude Code、Codex 和/或 Antigravity（至少其一）
 
 > tmux 不是必要條件（屬於階段二計畫，見下方）。
 
@@ -60,10 +73,11 @@ Codex 只發出一種 notify 事件（`agent-turn-complete`），所以 Codex se
 ./sessions/install.sh
 ```
 
-安裝腳本會做兩件事（皆先備份、只增不刪、可重複執行）：
+安裝腳本會做三件事（皆先備份、只增不刪、可重複執行）：
 
 1. **Claude Code** `~/.claude/settings.json` — 在 `hooks.SessionStart`、`hooks.UserPromptSubmit`、`hooks.Stop`、`hooks.Notification`、`hooks.SessionEnd` 各加入 `sessions/track.sh claude`（以 command 比對，冪等；SessionEnd 觸發時會清除該 session 的狀態檔）
 2. **Codex** `~/.codex/config.toml` — 在頂層加 `notify = ["/path/to/sessions/notify.sh", "codex"]`（詳見下方「Codex notify 合併派發器」）
+3. **Antigravity** `~/.gemini/config/plugins/ai-sessions/` — 建立專屬 agy plugin（`plugin.json` + `hooks.json`），把 `PostToolUse`→`running`、`Stop`→`idle` 導到 `track.sh`（詳見上方「Antigravity 支援與限制」）
 
 完成後：
 - **重新開啟 Claude Code session** 讓 hooks 生效
@@ -74,6 +88,7 @@ Codex 只發出一種 notify 事件（`agent-turn-complete`），所以 Codex se
 ```bash
 CLAUDE_CONFIG_DIR=/path/to/claude ./sessions/install.sh
 CODEX_HOME=/path/to/codex ./sessions/install.sh
+GEMINI_CONFIG_DIR=/path/to/gemini ./sessions/install.sh
 AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ```
 
@@ -83,7 +98,7 @@ AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ./sessions/uninstall.sh
 ```
 
-從 Claude settings 移除五個事件的 hook，從 Codex config.toml 移除 notify 設定（皆留備份）。
+從 Claude settings 移除五個事件的 hook，從 Codex config.toml 移除 notify 設定（皆留備份），並刪除 Antigravity 的 agy plugin 目錄 `~/.gemini/config/plugins/ai-sessions/`。
 
 > **注意**：移除後 Codex 的 `notify` 整個消失，連 bell 的 BEL 提示也不再觸發。
 > 若仍想保留 bell，移除後重跑 `./bell/install.sh` 還原 bell-only notify。

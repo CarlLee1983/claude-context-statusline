@@ -15,13 +15,13 @@ working directory — in a wide curses TUI.
 ## Architecture
 
 ```
-[Claude Code hooks]        [Codex notify]
-  SessionStart               agent-turn-complete
-  UserPromptSubmit                │
-  Notification                    │
-  Stop / SessionEnd               │
-         │                        ▼
-         └──────→  sessions/track.sh  (thin shell, never crashes)
+[Claude Code hooks]      [Codex notify]        [Antigravity plugin]
+  SessionStart             agent-turn-complete    PostToolUse
+  UserPromptSubmit               │                Stop
+  Notification                   │                  │
+  Stop / SessionEnd              │                  │
+         │                       ▼                  ▼
+         └────────────→  sessions/track.sh  (thin shell, never crashes)
                          │
                          ▼
               ~/.cache/ai-sessions/<id>.json   (override with AI_SESSIONS_DIR)
@@ -43,6 +43,8 @@ The trigger layer (hook/notify configuration for each CLI) and the display layer
 | `Stop` | → `idle` |
 | `SessionEnd` | deletes record |
 | Codex `agent-turn-complete` | → `idle` |
+| Antigravity `PostToolUse` | → `running` |
+| Antigravity `Stop` | → `idle` |
 
 The TUI sorts: `waiting` (top) → `running` → `idle` (bottom); within each group,
 most recently updated first. Sessions not updated for more than 30 minutes are marked
@@ -53,10 +55,22 @@ most recently updated first. Sessions not updated for more than 30 minutes are m
 Codex emits only one notify event (`agent-turn-complete`), so Codex sessions will
 always show `idle` + last-done time — they never appear as `running` or `waiting`.
 
+## Antigravity support and limits
+
+Antigravity (`agy`, gemini-cli family) is tracked via a dedicated agy plugin: install
+creates `~/.gemini/config/plugins/ai-sessions/` (`plugin.json` + `hooks.json`) routing
+`PostToolUse` (working → `running`) and `Stop` (done → `idle`) to `track.sh`.
+
+- **Status granularity**: only `running` / `idle`, **no** `waiting` (agy emits no such event).
+- **No create/delete events**: a record is created lazily on the first event and cleaned up
+  by the `(stale)` timeout (like Codex).
+- **Requirement**: agy plugin hooks support (`~/.gemini/config/plugins/*/hooks.json`).
+- **Synchronous hook**: `PostToolUse` is synchronous (`async: false`); each tool call waits for `track.sh` to finish (~30ms).
+
 ## Requirements
 
 - macOS, with the system `/usr/bin/python3` (nothing extra to install)
-- Claude Code and/or Codex
+- Claude Code, Codex, and/or Antigravity (at least one)
 
 > tmux is not required (it is part of the phase-2 plan, see below).
 
@@ -66,7 +80,7 @@ always show `idle` + last-done time — they never appear as `running` or `waiti
 ./sessions/install.sh
 ```
 
-The installer does two things (each with a backup, additive-only, idempotent):
+The installer does three things (each with a backup, additive-only, idempotent):
 
 1. **Claude Code** `~/.claude/settings.json` — adds `sessions/track.sh claude` to
    `hooks.SessionStart`, `hooks.UserPromptSubmit`, `hooks.Stop`, `hooks.Notification`,
@@ -74,6 +88,9 @@ The installer does two things (each with a backup, additive-only, idempotent):
    up the state file when the session ends)
 2. **Codex** `~/.codex/config.toml` — sets the top-level `notify` to
    `["/path/to/sessions/notify.sh", "codex"]` (see "Codex notify dispatcher" below)
+3. **Antigravity** `~/.gemini/config/plugins/ai-sessions/` — creates a dedicated agy
+   plugin (`plugin.json` + `hooks.json`) routing `PostToolUse`→`running` and
+   `Stop`→`idle` to `track.sh` (see "Antigravity support and limits" above)
 
 After installing:
 - **Reopen a Claude Code session** so the hooks load
@@ -84,6 +101,7 @@ Override config directories (testing / non-standard paths):
 ```bash
 CLAUDE_CONFIG_DIR=/path/to/claude ./sessions/install.sh
 CODEX_HOME=/path/to/codex ./sessions/install.sh
+GEMINI_CONFIG_DIR=/path/to/gemini ./sessions/install.sh
 AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ```
 
@@ -93,7 +111,8 @@ AI_SESSIONS_DIR=/path/to/state ./sessions/install.sh
 ./sessions/uninstall.sh
 ```
 
-Removes the five Claude hook entries and the Codex notify setting (both with backups).
+Removes the five Claude hook entries and the Codex notify setting (both with backups),
+and deletes the Antigravity agy plugin directory `~/.gemini/config/plugins/ai-sessions/`.
 
 > **Note**: uninstalling removes the Codex `notify` key entirely — the bell's BEL
 > signal will also stop firing. To restore bell-only Codex notifications, run
