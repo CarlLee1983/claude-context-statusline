@@ -241,8 +241,7 @@ enum StatusMenuImageRenderer {
     /// Falls back to the drawn arch if the embedded PNG can't be decoded.
     private static func drawAntigravityLogo(in rect: NSRect) {
         guard
-            let data = Data(base64Encoded: AntigravityLogo.base64),
-            let image = NSImage(data: data),
+            let image = AntigravityLogo.image,
             image.size.width > 0, image.size.height > 0
         else {
             drawAntigravityArch(in: rect)

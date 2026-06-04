@@ -79,17 +79,20 @@ struct OpenAILogoView: View {
 // 3. Gemini Sparkle Shape (four-pointed star)
 struct GeminiSparkleShape: Shape {
     func path(in rect: CGRect) -> Path {
-        var path = Path()
-        let cx = rect.midX
-        let cy = rect.midY
-        let w = rect.width
-        let h = rect.height
+        let size = min(rect.width, rect.height)
+        let offsetX = rect.minX + (rect.width - size) / 2
+        let offsetY = rect.minY + (rect.height - size) / 2
+        let squareRect = CGRect(x: offsetX, y: offsetY, width: size, height: size)
         
-        path.move(to: CGPoint(x: cx, y: rect.minY))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: cy), control: CGPoint(x: cx + w * 0.15, y: cy - h * 0.15))
-        path.addQuadCurve(to: CGPoint(x: cx, y: rect.maxY), control: CGPoint(x: cx + w * 0.15, y: cy + h * 0.15))
-        path.addQuadCurve(to: CGPoint(x: rect.minX, y: cy), control: CGPoint(x: cx - w * 0.15, y: cy + h * 0.15))
-        path.addQuadCurve(to: CGPoint(x: cx, y: rect.minY), control: CGPoint(x: cx - w * 0.15, y: cy - h * 0.15))
+        var path = Path()
+        let cx = squareRect.midX
+        let cy = squareRect.midY
+        
+        path.move(to: CGPoint(x: cx, y: squareRect.minY))
+        path.addQuadCurve(to: CGPoint(x: squareRect.maxX, y: cy), control: CGPoint(x: cx + size * 0.15, y: cy - size * 0.15))
+        path.addQuadCurve(to: CGPoint(x: cx, y: squareRect.maxY), control: CGPoint(x: cx + size * 0.15, y: cy + size * 0.15))
+        path.addQuadCurve(to: CGPoint(x: squareRect.minX, y: cy), control: CGPoint(x: cx - size * 0.15, y: cy + size * 0.15))
+        path.addQuadCurve(to: CGPoint(x: cx, y: squareRect.minY), control: CGPoint(x: cx - size * 0.15, y: cy - size * 0.15))
         path.closeSubpath()
         return path
     }
@@ -133,3 +136,124 @@ struct AntigravityLogoView: View {
         }
     }
 }
+
+// 5. Brand Icon View Switcher
+public struct BrandIconView: View {
+    public let name: String
+    
+    public init(name: String) {
+        self.name = name
+    }
+    
+    public var body: some View {
+        let lowercased = name.lowercased()
+        if lowercased.contains("claude") {
+            ClaudeLogoShape()
+                .fill(Color(nsColor: ClaudeLogo.brandColor))
+        } else if lowercased.contains("codex") || lowercased.contains("openai") {
+            OpenAILogoView(color: .primary)
+        } else if lowercased.contains("antigravity") {
+            AntigravityLogoView()
+        } else if lowercased.contains("gemini") || lowercased.contains("google") {
+            GeminiLogoView()
+        } else {
+            Circle()
+                .fill(Color.secondary)
+        }
+    }
+}
+
+// 6. Usage Progress Bar View
+public struct UsageProgressBarView: View {
+    public let label: String
+    public let remainingPercent: Int
+    public let usedPercent: Int
+    public let tier: RemainingTier
+    public let detailText: String
+    
+    public init(
+        label: String,
+        remainingPercent: Int,
+        usedPercent: Int,
+        tier: RemainingTier,
+        detailText: String
+    ) {
+        self.label = label
+        self.remainingPercent = remainingPercent
+        self.usedPercent = usedPercent
+        self.tier = tier
+        self.detailText = detailText
+    }
+    
+    public init(window: UsageWindow, now: Date = .now) {
+        self.label = window.label
+        let remaining = RemainingQuotaPresenter.remainingPercent(for: window)
+        self.remainingPercent = remaining
+        self.usedPercent = window.kind == .used ? Int(window.percent.rounded()) : (100 - remaining)
+        self.tier = RemainingQuotaPresenter.tier(forRemaining: remaining)
+        
+        let resetText = window.resetAt.map { resetAt in
+            if Calendar.current.isDate(resetAt, inSameDayAs: now) {
+                return "reset " + resetAt.formatted(date: .omitted, time: .shortened)
+            } else {
+                return "reset " + resetAt.formatted(date: .abbreviated, time: .shortened)
+            }
+        }
+        
+        if let reset = resetText {
+            self.detailText = reset
+        } else {
+            self.detailText = "No reset scheduled"
+        }
+    }
+    
+    private var tierColor: Color {
+        switch tier {
+        case .good:
+            return Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255) // Apple Green
+        case .warn:
+            return Color(red: 255 / 255, green: 204 / 255, blue: 0 / 255) // Apple Yellow/Amber
+        case .critical:
+            return Color(red: 255 / 255, green: 59 / 255, blue: 48 / 255) // Apple Red
+        }
+    }
+    
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.primary)
+                Spacer()
+                Text("\(remainingPercent)% remaining")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(tierColor)
+            }
+            
+            // Progress Bar
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(Color.primary.opacity(0.1))
+                    
+                    RoundedRectangle(cornerRadius: 3)
+                        .fill(tierColor)
+                        .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(remainingPercent) / 100.0)))
+                }
+            }
+            .frame(height: 6)
+            
+            HStack {
+                Text("Used \(usedPercent)%")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                Spacer()
+                Text(detailText)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+}
+
