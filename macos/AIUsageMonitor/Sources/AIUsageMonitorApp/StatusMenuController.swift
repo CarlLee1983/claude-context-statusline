@@ -6,10 +6,9 @@ import SwiftUI
 
 @MainActor
 final class StatusMenuController {
-    /// Auto-refresh cadence in seconds. Deliberately 300s (5 min) to match the
-    /// SwiftBar plugin's `FETCH_TTL`: both看的是 5h / 7d 速率限制視窗,5 分鐘僅
-    /// 約佔 5h 視窗的 1.7%,粒度足夠,又避開 usage 端點自身的 429 限流。
-    /// 需要即時數字時用選單的 "Refresh"。
+    /// Auto-refresh cadence in seconds. Deliberately 300s (5 min):速率限制視窗是
+    /// 5h / 7d,5 分鐘僅約佔 5h 視窗的 1.7%,粒度足夠,又避開 usage 端點自身的
+    /// 429 限流。需要即時數字時用選單的 "Refresh"。
     static let refreshInterval: Duration = .seconds(300)
 
     private let providerFactory: (Set<UsageProviderID>) -> any UsageSnapshotProviding

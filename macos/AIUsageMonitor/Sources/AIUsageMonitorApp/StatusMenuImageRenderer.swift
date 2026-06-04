@@ -255,8 +255,8 @@ enum StatusMenuImageRenderer {
         }
     }
 
-    /// Draw the official Claude starburst (matches the SwiftBar plugin's brand
-    /// path) filled in brand orange, instead of an approximate procedural star.
+    /// Draw the official Claude starburst brand path, filled in brand orange,
+    /// instead of an approximate procedural star.
     private static func drawClaudeSpark(in rect: NSRect) {
         ClaudeLogo.brandColor.setFill()
         ClaudeLogo.bezierPath(in: rect).fill()
@@ -280,8 +280,8 @@ enum StatusMenuImageRenderer {
         }
     }
 
-    /// Draw the official Antigravity brand logo (matches the SwiftBar plugin),
-    /// scaled to fit the icon rect with aspect ratio preserved and centered.
+    /// Draw the official Antigravity brand logo, scaled to fit the icon rect
+    /// with aspect ratio preserved and centered.
     /// Falls back to the drawn arch if the embedded PNG can't be decoded.
     private static func drawAntigravityLogo(in rect: NSRect) {
         guard

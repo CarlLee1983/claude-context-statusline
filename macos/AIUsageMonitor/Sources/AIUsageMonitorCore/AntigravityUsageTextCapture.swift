@@ -2,8 +2,7 @@ import Darwin
 import Foundation
 
 /// Drives the Antigravity CLI's `/usage` slash command and returns the raw panel
-/// text, or nil on any failure. Mirrors the reference SwiftBar
-/// `_capture_antigravity_usage_text`.
+/// text, or nil on any failure.
 ///
 /// The slash command only renders inside a TTY, so a plain pipe won't do — the CLI
 /// is run against a pseudo-terminal. This is a thin I/O boundary (not unit tested);
@@ -28,7 +27,7 @@ public enum AntigravityUsageTextCapture {
         }
 
         // Enlarge the TTY so `/usage` renders the full model list, not just a
-        // small viewport (matches the reference 80x120 window size).
+        // small viewport (an 80x120 window fits the whole panel).
         var size = winsize(ws_row: 80, ws_col: 120, ws_xpixel: 0, ws_ypixel: 0)
         _ = ioctl(slave, TIOCSWINSZ, &size)
 
@@ -104,8 +103,8 @@ public enum AntigravityUsageTextCapture {
     }
 
     /// Locate `agy`: the conventional install dir, common bin dirs, then the login
-    /// shell. Kept narrow on purpose; the broader node-manager probing the SwiftBar
-    /// plugin needs is for `codex`, not `agy`.
+    /// shell. Kept narrow on purpose; the heavier node-manager probing that
+    /// `codex` resolution needs isn't required for `agy`.
     private static func resolveAgy() -> String? {
         let fileManager = FileManager.default
         let candidates = [

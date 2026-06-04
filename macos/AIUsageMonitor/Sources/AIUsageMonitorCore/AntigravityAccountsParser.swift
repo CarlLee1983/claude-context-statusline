@@ -6,8 +6,7 @@ import Foundation
 /// Antigravity has no public percentage-usage endpoint to reuse, so this is the
 /// conservative fallback when `agy /usage` can't be captured: an account existing
 /// means "ready"; an unexpired rate-limit reset means that quota pool is fully
-/// limited (0% remaining) until it resets. Mirrors the reference SwiftBar
-/// `provider_antigravity` accounts path.
+/// limited (0% remaining) until it resets.
 public enum AntigravityAccountsParser {
     public struct Result: Equatable, Sendable {
         public let plan: String?

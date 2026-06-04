@@ -1,7 +1,6 @@
 import Foundation
 
-/// Produces the Antigravity snapshot. Mirrors the reference SwiftBar
-/// `provider_antigravity`: prefer the live `agy /usage` panel (real available-quota
+/// Produces the Antigravity snapshot: prefer the live `agy /usage` panel (real available-quota
 /// percentages); if that can't be captured, fall back to the local accounts file
 /// (cooldown detection / ready state); otherwise report unavailable.
 ///

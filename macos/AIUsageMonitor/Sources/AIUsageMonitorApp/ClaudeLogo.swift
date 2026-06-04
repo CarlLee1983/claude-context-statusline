@@ -2,11 +2,11 @@ import AIUsageMonitorCore
 import AppKit
 import Foundation
 
-/// Official Claude starburst mark. The `svgPath` is kept byte-identical to the
-/// SwiftBar plugin's `CLAUDE_PATH` (viewBox 0 0 24 24) so both menu bars render
-/// the same brand logo instead of an approximate procedural star.
+/// Official Claude starburst mark. The `svgPath` uses the official brand path
+/// (viewBox 0 0 24 24) so the menu bar renders the real logo instead of an
+/// approximate procedural star.
 enum ClaudeLogo {
-    /// Brand orange used as the fill, matching the SwiftBar plugin's `(217, 115, 79)`.
+    /// Brand orange used as the fill: `(217, 115, 79)`.
     static let brandColor = NSColor(
         calibratedRed: 217 / 255, green: 115 / 255, blue: 79 / 255, alpha: 1
     )
