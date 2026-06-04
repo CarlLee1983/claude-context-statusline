@@ -69,9 +69,11 @@ def remove_claude_hooks(data, command):
 
 # ---- Codex: config.toml 的 notify 合併派發器（文字行掃描，不解析 TOML）------
 _NOTIFY_RE = re.compile(r"^\s*notify\s*=")
-_BELL_NOTIFY_SUBSTR = "bell/notify.sh"
-_OUR_NOTIFY_SUBSTR = "sessions/notify.sh"
+_BELL_NOTIFY_SUBSTR = "bell/notify.sh"     # 實務上由絕對路徑錨定
+_OUR_NOTIFY_SUBSTR = "sessions/notify.sh"  # 同上
 _MARKER_PREFIX = "# added by claude-context-statusline"
+# bell-setup 寫入時固定帶這個 marker；唯有「前一行正好是它」才視為 bell 託管、可安全升級。
+_BELL_MARKER = "# added by claude-context-statusline bell/install.sh"
 
 
 def _toplevel_notify_index(lines):
@@ -100,13 +102,11 @@ def apply_codex_dispatch(text, dispatch_args):
     line = lines[idx]
     if _OUR_NOTIFY_SUBSTR in line:
         return text, False
-    if _BELL_NOTIFY_SUBSTR in line:
+    if (_BELL_NOTIFY_SUBSTR in line and idx > 0
+            and lines[idx - 1].strip() == _BELL_MARKER):
         new_lines = list(lines)
         new_lines[idx] = new_notify
-        if idx > 0 and new_lines[idx - 1].strip().startswith(_MARKER_PREFIX):
-            new_lines[idx - 1] = MARKER
-        else:
-            new_lines.insert(idx, MARKER)
+        new_lines[idx - 1] = MARKER
         new = "\n".join(new_lines)
         if text.endswith("\n") and new and not new.endswith("\n"):
             new += "\n"

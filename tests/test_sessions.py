@@ -238,6 +238,7 @@ class CodexDispatchTest(unittest.TestCase):
         self.assertIn("sessions/notify.sh", new)
         self.assertNotIn("bell/notify.sh", new)
         self.assertIn(setup.MARKER, new)
+        self.assertTrue(new.endswith("\n"))
 
     def test_idempotent_when_already_ours(self):
         text = f"{setup.MARKER}\n{self.NOTIFY}\n"
@@ -261,3 +262,28 @@ class CodexDispatchTest(unittest.TestCase):
     def test_remove_when_absent(self):
         new, changed = setup.remove_codex_dispatch('model = "x"\n')
         self.assertFalse(changed)
+
+    def test_foreign_bell_path_without_marker_untouched(self):
+        # 使用者自己的 notify 剛好路徑含 bell/notify.sh，但沒有 bell marker → 不可動
+        text = 'notify = ["/my/projects/bell/notify.sh"]\n'
+        new, changed = setup.apply_codex_dispatch(text, self.ARGS)
+        self.assertFalse(changed)
+        self.assertEqual(new, text)
+
+    def test_bell_notify_with_foreign_marker_untouched(self):
+        # 前一行是別的工具 marker（非 bell 完整 marker）→ 不可動
+        text = ('# added by claude-context-statusline other/install.sh\n'
+                'notify = ["/abs/bell/notify.sh", "codex"]\n')
+        new, changed = setup.apply_codex_dispatch(text, self.ARGS)
+        self.assertFalse(changed)
+        self.assertEqual(new, text)
+
+    def test_upgrade_then_remove_round_trip(self):
+        original = ('# added by claude-context-statusline bell/install.sh\n'
+                    'notify = ["/abs/bell/notify.sh", "codex"]\n\nmodel = "x"\n')
+        upgraded, c1 = setup.apply_codex_dispatch(original, self.ARGS)
+        self.assertTrue(c1)
+        removed, c2 = setup.remove_codex_dispatch(upgraded)
+        self.assertTrue(c2)
+        self.assertNotIn("sessions/notify.sh", removed)
+        self.assertIn('model = "x"', removed)
