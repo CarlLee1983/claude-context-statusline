@@ -25,6 +25,10 @@
 - **狀態色（依「剩餘」額度判斷，與原生 App 的 `RemainingQuotaPresenter` 對齊）**：
   綠（正常）、黃（剩餘 ≤ `WARN_REMAINING`）、紅（剩餘 ≤ `CRIT_REMAINING`）。
   狀態同時用形狀角標編碼（黃三角 / 紅驚嘆號），對色盲友善。
+- **用不完就浪費（expiring-unused）提示**：當某視窗**剩很多卻快 reset**（剩餘
+  ≥ `EXPIRING_REMAINING_THRESHOLD` 且距 reset ≤ 週期的 `EXPIRING_WINDOW_FRACTION`），該列轉**靛藍**
+  並加 `⏳ 即將重置` 標記，提醒趁 reset 前用掉額度（週用量最常遇到）。週期由視窗 label（`5h`/`7d`）
+  解析，Antigravity 模型名解不出故不觸發。與[原生 App](../macos/AIUsageMonitor/README.md) 同一邏輯。
 
 ## 需求
 

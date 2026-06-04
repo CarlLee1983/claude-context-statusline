@@ -91,6 +91,18 @@ Sources/
 設計上把所有可測試的邏輯放在 `AIUsageMonitorCore`，AppKit 外殼（`AIUsageMonitorApp`）只負責
 UI 與排程。狀態分級一律以「**剩餘**額度」計算（而非已用量），與 SwiftBar 外掛的判斷一致。
 
+## 顯示行為：用不完就浪費（expiring-unused）提示
+
+除了「剩餘量低 → 轉黃/紅」的嚴重度分級外，當某個視窗**剩很多卻快 reset** 時（訂閱額度一到
+reset 就回滿，沒用掉等於浪費），該進度條會換成**靛藍 + 對角斜線**、`% remaining` 文字同步轉
+靛藍，提醒你趁 reset 前把額度用掉——尤其週（7d）視窗最容易遇到。斜線是色盲友善的第二編碼，
+不只靠顏色。
+
+觸發條件（`RemainingQuotaPresenter.isExpiringUnused`，純函式、可單元測試）：視窗 label 解得出
+固定週期（`5h` / `7d`）、剩餘 **≥ 40%**、且距 reset **≤ 週期的 15%**（5h → <45 分、7d → <約
+25 小時）。Antigravity 是共用冷卻池、label 為模型名，解不出週期故天生不觸發。
+[SwiftBar 外掛](../../swiftbar/README.md) 對齊同一邏輯，以 `⏳ 即將重置` 標記呈現。
+
 ## 測試
 
 ```bash

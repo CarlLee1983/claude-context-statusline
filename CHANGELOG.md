@@ -10,6 +10,17 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- **用不完就浪費（expiring-unused）提示**：當用量視窗**剩很多卻快 reset** 時（剩餘 ≥ 40% 且距
+  reset ≤ 週期的 15%），原生 App 的進度條轉**靛藍 + 對角斜線**、`% remaining` 文字同步靛藍；
+  SwiftBar 外掛對應的列轉靛藍並加 `⏳ 即將重置` 標記。週期由視窗 label（`5h`/`7d`）解析，
+  Antigravity（共用冷卻池、模型名 label）解不出故不觸發。邏輯集中於
+  `RemainingQuotaPresenter.isExpiringUnused`（純函式，兩邊對齊）。
+  **Expiring-unused hint**: when a usage window has **lots of quota left yet resets soon**
+  (remaining ≥ 40% and the reset is ≤ 15% of the period away), the native app's progress bar turns
+  **indigo with a diagonal-stripe texture** (and the `% remaining` text turns indigo); the SwiftBar
+  plugin turns the matching row indigo with a `⏳ resets soon` marker. The period is parsed from the
+  window label (`5h`/`7d`); Antigravity (shared cooldown pool, model-name labels) doesn't parse and
+  never triggers. Logic lives in `RemainingQuotaPresenter.isExpiringUnused` (pure, mirrored on both).
 - **sessions 階段三**：納入 Antigravity（`agy`）。安裝一個專屬 agy plugin
   （`~/.gemini/config/plugins/ai-sessions/`）把 `PostToolUse`→`running`、`Stop`→`idle`
   導到 `track.sh`。狀態粒度為 running/idle（無 waiting），靠 stale 逾時清理。

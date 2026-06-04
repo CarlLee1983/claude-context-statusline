@@ -29,6 +29,12 @@ Three providers are built in:
   `RemainingQuotaPresenter`)**: green (healthy), yellow (remaining ≤ `WARN_REMAINING`), red
   (remaining ≤ `CRIT_REMAINING`). Status is also shape-encoded (yellow triangle / red exclamation)
   for colorblind friendliness.
+- **Expiring-unused hint**: when a window has **lots of quota left yet resets soon** (remaining ≥
+  `EXPIRING_REMAINING_THRESHOLD` and the reset is ≤ `EXPIRING_WINDOW_FRACTION` of the period away),
+  that row turns **indigo** with a `⏳ resets soon` marker, nudging you to spend the quota before it
+  resets (most common on the weekly window). The period is parsed from the window label (`5h`/`7d`);
+  Antigravity's model-name labels don't parse, so it never triggers. Same logic as the
+  [native app](../macos/AIUsageMonitor/README.md).
 
 ## Requirements
 

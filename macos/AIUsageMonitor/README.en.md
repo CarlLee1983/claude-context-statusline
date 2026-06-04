@@ -92,6 +92,21 @@ All testable logic lives in `AIUsageMonitorCore`; the AppKit shell (`AIUsageMoni
 UI and scheduling. Status tiers are computed from **remaining** headroom (not used amount),
 consistent with the SwiftBar plugin.
 
+## Display behavior: the expiring-unused hint
+
+Beyond the "low remaining → yellow/red" severity tier, when a window has **lots of quota left yet
+resets soon** (subscription quota refills to full at reset, so anything unused is wasted), that
+progress bar switches to **indigo with a diagonal-stripe texture** and the `% remaining` text turns
+indigo too — nudging you to spend the quota before it resets. The weekly (7d) window hits this most
+often. The stripe is a color-blind-friendly second cue, not color alone.
+
+Trigger (`RemainingQuotaPresenter.isExpiringUnused`, a pure, unit-tested function): the window label
+must parse to a fixed period (`5h` / `7d`), remaining must be **≥ 40%**, and the reset must be **≤
+15% of the period away** (5h → <45 min, 7d → <~25 h). Antigravity is a shared cooldown pool with
+model-name labels, so its period is unparseable and it never triggers by design. The
+[SwiftBar plugin](../../swiftbar/README.en.md) mirrors the same logic, surfacing it as a
+`⏳ resets soon` marker.
+
 ## Tests
 
 ```bash
