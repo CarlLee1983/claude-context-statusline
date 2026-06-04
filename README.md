@@ -2,11 +2,12 @@
 
 **繁體中文** · [English](README.en.md)
 
-一組讓 **AI CLI 用量隨時可見、跑完有提示** 的 macOS 小工具。從最初的 Claude Code context 狀態列，
+一組讓 **AI CLI 用量隨時可見、跑完有提示、多 session 一眼掌握** 的 macOS 小工具。從最初的 Claude Code context 狀態列，
 延伸出兩種在 macOS 選單列常駐顯示「訂閱速率限制剩餘額度」的方式（原生選單列 App 與 SwiftBar 外掛），
-以及讓 AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁標記的完成提示元件。
+讓 AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁標記的完成提示元件，
+以及一次掌握所有 AI CLI session 狀態的跨 session 儀表板。
 
-## 四個工具
+## 五個工具
 
 | 工具 | 顯示位置 | 監看對象 | 相依 | 安裝 |
 |------|----------|----------|------|------|
@@ -14,10 +15,12 @@
 | [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor`（或 `./Scripts/install-app.sh`） |
 | [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | `brew install CarlLee1983/tap/swiftbar-ai-usage`（或 `./swiftbar/install.sh`） |
 | [**完成提示（bell/）**](bell/README.md) | Ghostty 分頁 / Dock | **完成事件 → 終端機分頁標記**（BEL） | 系統 `python3`、Ghostty | `./bell/install.sh` |
+| [**Session 儀表板（sessions/）**](sessions/README.md) | 終端機 curses TUI | **跨 session 的即時狀態**（running / waiting / idle） | 系統 `python3` | `./sessions/install.sh` |
 
 > 各元件監看的資料不同：**ctx-statusline** 看「單一 session 把 context window 用掉多少」；
 > **原生 App** 與 **SwiftBar 外掛** 看「訂閱方案的 5 小時 / 7 天速率限制還剩多少」；
-> **bell** 看「AI CLI 何時跑完一輪 → 終端機分頁標記」，不讀用量數字。
+> **bell** 看「AI CLI 何時跑完一輪 → 終端機分頁標記」，不讀用量數字；
+> **sessions** 看「所有 AI CLI session 目前的執行狀態」，不讀用量數字也不讀速率限制。
 
 ---
 
@@ -143,6 +146,21 @@ AI CLI 跑完一輪時，透過終端機 BEL 觸發 Ghostty 把分頁或視窗�
 
 ```bash
 ./bell/install.sh
+```
+
+---
+
+## 5. Session 儀表板（`sessions/`）
+
+同時跑多個 Ghostty 分頁的 AI CLI 時，以 curses TUI 一次顯示所有 session 的即時狀態
+（running / waiting / idle）及各 session 的工作目錄。支援 Claude Code（四個 hook 事件）
+與 Codex（notify）；純標準庫，不讀用量數字，不讀速率限制。
+
+完整安裝與架構說明請見 **[sessions/README.md](sessions/README.md)**。
+
+```bash
+./sessions/install.sh
+./sessions/dashboard.py   # 開啟 TUI
 ```
 
 ---
