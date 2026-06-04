@@ -153,6 +153,16 @@ class TrackShTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(proc.stderr, b"")
 
+    def test_antigravity_posttooluse_writes_record(self):
+        payload = json.dumps({"conversationId": "agy1", "workspacePaths": ["/p"]})
+        proc = self._run(["antigravity", "PostToolUse"], stdin=payload.encode())
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue(os.path.exists(os.path.join(self.dir, "agy1.json")))
+        with open(os.path.join(self.dir, "agy1.json"), encoding="utf-8") as f:
+            rec = json.load(f)
+        self.assertEqual(rec["cli"], "antigravity")
+        self.assertEqual(rec["status"], "running")
+
 
 class NotifyShTest(unittest.TestCase):
     NOTIFY = os.path.join(_DIR, "notify.sh")

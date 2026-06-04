@@ -65,6 +65,7 @@ creates `~/.gemini/config/plugins/ai-sessions/` (`plugin.json` + `hooks.json`) r
 - **No create/delete events**: a record is created lazily on the first event and cleaned up
   by the `(stale)` timeout (like Codex).
 - **Requirement**: agy plugin hooks support (`~/.gemini/config/plugins/*/hooks.json`).
+- **Synchronous hook**: `PostToolUse` is synchronous (`async: false`); each tool call waits for `track.sh` to finish (~30ms).
 
 ## Requirements
 

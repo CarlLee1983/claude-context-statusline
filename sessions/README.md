@@ -58,6 +58,7 @@ Antigravity（`agy`，gemini-cli 系）以一個專屬 agy plugin 追蹤：安�
 - **狀態粒度**：只有 `running` / `idle`，**沒有** `waiting`（agy 不送對應事件）。
 - **無建檔/刪檔事件**：記錄於首個事件延遲建立，靠 `(stale)` 逾時清理（同 Codex）。
 - **需求**：agy 支援 plugin hooks（`~/.gemini/config/plugins/*/hooks.json`）。
+- **同步 hook**：`PostToolUse` 為同步（`async: false`），每次工具呼叫會等 `track.sh` 跑完（約 30ms）。
 
 ## 需求
 
