@@ -363,5 +363,18 @@ class DashboardLogicTest(unittest.TestCase):
         self.assertEqual(len(recs), 1)
         self.assertEqual(recs[0]["cwd"], "/p")
 
+    def test_load_records_coerces_bad_updated_at(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "bad_ts.json"), "w") as f:
+            json.dump({"status": "idle", "cwd": "/p", "updated_at": "not-a-number"}, f)
+        recs = dashboard.load_records(d)
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["updated_at"], 0.0)
+        # downstream pure fns must not raise on the coerced record
+        dashboard.is_stale(recs[0], now=100)
+        dashboard.sort_key(recs[0])
+        dashboard.format_row(recs[0], now=100)
+
     def test_load_records_missing_dir_returns_empty(self):
         self.assertEqual(dashboard.load_records("/no/such/dir"), [])

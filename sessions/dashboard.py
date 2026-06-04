@@ -23,6 +23,17 @@ def default_dir(env=None):
     return env.get("AI_SESSIONS_DIR") or os.path.expanduser("~/.cache/ai-sessions")
 
 
+def _coerce_times(record):
+    """把 updated_at / started_at 正規化成 float（壞值→0.0），下游純函式才不會因
+    state 檔型別異常而拋例外（永不崩潰）。回傳同一個 dict（就地補正時間欄位）。"""
+    for key in ("updated_at", "started_at"):
+        try:
+            record[key] = float(record.get(key, 0))
+        except (TypeError, ValueError):
+            record[key] = 0.0
+    return record
+
+
 def load_records(directory):
     out = []
     try:
@@ -38,7 +49,7 @@ def load_records(directory):
         except Exception:
             continue
         if isinstance(rec, dict):
-            out.append(rec)
+            out.append(_coerce_times(rec))
     return out
 
 
