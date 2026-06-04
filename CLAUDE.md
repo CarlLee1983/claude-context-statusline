@@ -10,7 +10,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **`macos/AIUsageMonitor`**：純 Swift 的 macOS 原生選單列 App，原生抓取 Claude 與 Codex 的速率限制（5h / 7d），每 5 分鐘自動刷新。
 3. **`swiftbar/ai-usage.60s.py`**：SwiftBar 外掛，單檔 Python 顯示 Claude、Codex、Antigravity 的速率限制；測試在 `tests/test_ai_usage.py`。
 4. **`bell/`**：AI CLI 完成提示——AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁/視窗標記。含 `bell/notify.sh`（BEL 發送器）、`bell/bell-setup`（合併邏輯）、`bell/install.sh` / `bell/uninstall.sh`；測試在 `tests/test_bell.py`。
-5. **`sessions/`**：多 session 總覽儀表板——Claude Code hooks 與 Codex notify 觸發 `sessions/track.sh` 寫 per-session JSON；`sessions/dashboard.py`（stdlib curses）每秒輪詢並渲染跨 session 的即時狀態（running / waiting / idle）。含 `sessions/notify.sh`（合併派發器，兼容 bell）、`sessions/install.sh` / `sessions/uninstall.sh`；測試在 `tests/test_sessions.py`。
+5. **`sessions/`**：多 session 總覽儀表板——Claude Code hooks、Codex notify 與 Antigravity plugin 觸發 `sessions/track.sh` 寫 per-session JSON；`sessions/dashboard.py`（stdlib curses）每秒輪詢並渲染跨 session 的即時狀態（running / waiting / idle）。含 `sessions/notify.sh`（合併派發器，兼容 bell）、`sessions/install.sh` / `sessions/uninstall.sh`；測試在 `tests/test_sessions.py`。
 
 > 各元件監看的資料不同：**ctx-statusline** 看的是單一 session 的 **context window** 用量；**原生 App** 與 **SwiftBar 外掛** 看的是訂閱方案的 **速率限制（5h / 7d）剩餘額度**；**bell** 看的是「完成事件 → 終端機分頁標記」，不讀用量數字；**sessions** 看的是「所有 AI CLI session 目前的執行狀態」，不讀用量也不讀速率限制。
 
@@ -95,6 +95,10 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
   AppleScript 字典——`pick_terminal`（純函式，cwd + 標題啟發式選分頁，單測）+
   `list_terminals` / `focus_terminal`（subprocess 薄邊界，不單測）。dashboard 的 `Enter`
   懶載入 `ghostty` 並 focus 到對應分頁；`c` 複製路徑。不做即時預覽（Ghostty 字典無對應指令）。
+- 階段三（Antigravity）：`sessions-track` 新增 `antigravity` 來源（`PostToolUse`→`running`、
+  `Stop`→`idle`；payload 取 `conversationId`/`workspacePaths[0]`）；`sessions-setup` 安裝一個
+  專屬 agy plugin `~/.gemini/config/plugins/ai-sessions/`（plugin.json + hooks.json），
+  解除即刪該目錄。gemini config 目錄可用 `GEMINI_CONFIG_DIR` 覆寫。
 
 ## 慣例
 

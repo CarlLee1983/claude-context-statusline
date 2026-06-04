@@ -10,6 +10,13 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- **sessions 階段三**：納入 Antigravity（`agy`）。安裝一個專屬 agy plugin
+  （`~/.gemini/config/plugins/ai-sessions/`）把 `PostToolUse`→`running`、`Stop`→`idle`
+  導到 `track.sh`。狀態粒度為 running/idle（無 waiting），靠 stale 逾時清理。
+  **sessions phase 3**: add Antigravity (`agy`) tracking via a dedicated agy plugin
+  (`~/.gemini/config/plugins/ai-sessions/`), routing `PostToolUse`→`running` and
+  `Stop`→`idle` to `track.sh`. Status granularity is running/idle only (no waiting);
+  cleaned up by the stale timeout.
 - **sessions 階段二**：儀表板 `Enter` 一鍵切到目標 AI session 的 Ghostty 分頁
   （Ghostty 1.3+ 原生 AppleScript；`c` 改為複製路徑）。配對以 cwd + 標題啟發式，
   永不崩潰；不含即時預覽（刻意取捨）。

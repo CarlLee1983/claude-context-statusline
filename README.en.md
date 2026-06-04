@@ -161,8 +161,8 @@ For full install and architecture see **[bell/README.en.md](bell/README.en.md)**
 
 When you have many Ghostty tabs running AI CLIs at once, a curses TUI shows the live
 status of every session (running / waiting / idle) along with each session's working
-directory. Supports Claude Code (four hook events) and Codex (notify). Pure standard
-library — reads neither usage numbers nor rate limits.
+directory. Tracks session state across three AI CLIs: Claude Code, Codex, and Antigravity.
+Pure standard library — reads neither usage numbers nor rate limits.
 
 For full install and architecture see **[sessions/README.en.md](sessions/README.en.md)**.
 
