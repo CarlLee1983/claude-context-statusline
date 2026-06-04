@@ -160,5 +160,82 @@ class ClockFormatTest(unittest.TestCase):
         self.assertEqual(ai_usage._clock(reset, now=now), "01/15 16:00")
 
 
+class ExpiringUnusedTest(unittest.TestCase):
+    """SwiftBar mirrors the native `RemainingQuotaPresenter` expiring-unused logic:
+    a window with lots of quota left AND an imminent reset is "use it or lose it"."""
+
+    def test_window_duration_parses_label(self):
+        self.assertEqual(ai_usage._window_duration("5h"), 5 * 3600)
+        self.assertEqual(ai_usage._window_duration("7d"), 7 * 86400)
+        self.assertEqual(ai_usage._window_duration("2w"), 2 * 604800)
+        self.assertEqual(ai_usage._window_duration("1m"), 2_592_000)
+        # case-insensitive, tolerant of an interior space
+        self.assertEqual(ai_usage._window_duration("7D"), 7 * 86400)
+        self.assertEqual(ai_usage._window_duration("5 h"), 5 * 3600)
+        # unparseable labels yield None (Antigravity model names, free-form, empty)
+        for bad in ("Gemini 3.5 Flash (Medium)", "Requests", "", "abc"):
+            self.assertIsNone(ai_usage._window_duration(bad))
+
+    def test_is_expiring_unused_matches_native_logic(self):
+        now = 1_800_000_000
+
+        def w(label, used, reset_in):
+            return {"label": label, "pct": float(used), "reset": now + reset_in}
+
+        # 5h window, 55% remaining (used 45%), reset in 30 min -> within 45-min tail -> True
+        self.assertTrue(ai_usage._is_expiring_unused(w("5h", 45, 30 * 60), now=now))
+        # 5h window, same quota, reset in 2 h -> outside the 15% tail -> False
+        self.assertFalse(ai_usage._is_expiring_unused(w("5h", 45, 2 * 3600), now=now))
+        # 7d window, 55% remaining, reset in 20 h -> within ~25.2 h tail -> True
+        self.assertTrue(ai_usage._is_expiring_unused(w("7d", 45, 20 * 3600), now=now))
+        # remaining 30% (< 40 threshold) -> False
+        self.assertFalse(ai_usage._is_expiring_unused(w("5h", 70, 10 * 60), now=now))
+        # boundary: exactly 40% remaining (used 60) -> True (>=)
+        self.assertTrue(ai_usage._is_expiring_unused(w("5h", 60, 10 * 60), now=now))
+        # boundary: reset exactly at duration*0.15 (5h -> 2700s) -> True (<=)
+        self.assertTrue(ai_usage._is_expiring_unused(w("5h", 45, 2700), now=now))
+        # reset already passed -> False
+        self.assertFalse(ai_usage._is_expiring_unused(w("5h", 45, -600), now=now))
+        # no reset key -> False
+        self.assertFalse(ai_usage._is_expiring_unused({"label": "5h", "pct": 45.0}, now=now))
+        # available kind, parseable label, high remaining, imminent reset -> True
+        self.assertTrue(ai_usage._is_expiring_unused(
+            {"label": "5h", "pct": 55.0, "kind": "available", "reset": now + 20 * 60}, now=now))
+        # unparseable label (Antigravity model name) -> False
+        self.assertFalse(ai_usage._is_expiring_unused(
+            {"label": "Gemini 3.5 Flash (Medium)", "pct": 40.0, "kind": "available", "reset": now + 60},
+            now=now))
+
+    def test_dropdown_marks_expiring_unused_window(self):
+        from datetime import datetime, timezone
+        now_ts = datetime.now(timezone.utc).timestamp()
+        rec = {
+            "name": "Claude Code", "short": "CC", "icon": "spark", "ok": True,
+            "plan": "Pro", "status": "limited", "five_hour": None, "seven_day": None,
+            "windows": [{"label": "5h", "pct": 45.0, "reset": now_ts + 1800}],
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ai_usage._print_dropdown([rec])
+        out = buf.getvalue()
+        self.assertIn("即將重置", out)
+        self.assertIn(ai_usage.EXPIRING_COLOR, out)
+
+    def test_dropdown_omits_marker_when_not_expiring(self):
+        from datetime import datetime, timezone
+        now_ts = datetime.now(timezone.utc).timestamp()
+        rec = {
+            "name": "Claude Code", "short": "CC", "icon": "spark", "ok": True,
+            "plan": "Pro", "status": "limited", "five_hour": None, "seven_day": None,
+            # reset 4 h away for a 5h window -> well outside the 15% tail
+            "windows": [{"label": "5h", "pct": 45.0, "reset": now_ts + 4 * 3600}],
+        }
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            ai_usage._print_dropdown([rec])
+        out = buf.getvalue()
+        self.assertNotIn("即將重置", out)
+
+
 if __name__ == "__main__":
     unittest.main()

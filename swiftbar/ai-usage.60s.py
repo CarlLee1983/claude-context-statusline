@@ -34,6 +34,10 @@ from datetime import datetime, timezone, timedelta
 # 狀態分級以「剩餘」quota 計算,與原生 menu app 的 RemainingQuotaPresenter 對齊。
 WARN_REMAINING = 40   # 剩餘 ≤ 此值轉黃
 CRIT_REMAINING = 10   # 剩餘 ≤ 此值轉紅
+# 「用不完就浪費」(expiring-unused):剩很多 + 快 reset。對齊原生 RemainingQuotaPresenter。
+EXPIRING_REMAINING_THRESHOLD = 40   # 剩餘 ≥ 此值且快 reset 才標記
+EXPIRING_WINDOW_FRACTION = 0.15     # 進入窗口末段此比例視為快 reset
+EXPIRING_COLOR = "#5856d6"          # 靛藍,與紅黃綠嚴重度色不衝突(對齊原生 indigo)
 BAR_WIDTH = 10    # 下拉選單進度條格數
 FETCH_TTL = 300   # 每個來源最短重抓間隔(秒);中間用快取,避開端點自身限流(429)
 CACHE_DIR = os.path.expanduser("~/.cache/ai-usage")
@@ -710,6 +714,48 @@ def _remaining_pct(w):
     return int(max(0, min(100, round(remaining))))
 
 
+_UNIT_SECONDS = {"h": 3600, "d": 86400, "w": 604800, "m": 2592000}
+
+
+def _window_duration(label):
+    """從 label(5h/7d/2w)解析固定窗口長度(秒);解不出回 None。
+    對齊原生 RemainingQuotaPresenter.windowDuration:大小寫不敏感、容忍中間空白,
+    free-form label(如 Antigravity 模型名)一律 None。單位 h/d/w/m(m=30 天)。"""
+    if not isinstance(label, str):
+        return None
+    trimmed = label.strip().lower()
+    if not trimmed:
+        return None
+    seconds = _UNIT_SECONDS.get(trimmed[-1])
+    if seconds is None:
+        return None
+    number_part = trimmed[:-1].strip()
+    if not number_part.isdigit():
+        return None
+    value = int(number_part)
+    if value <= 0:
+        return None
+    return float(value) * seconds
+
+
+def _is_expiring_unused(w, now=None):
+    """剩很多 + 快 reset -> True(對齊原生 isExpiringUnused)。
+    label 不可解、剩餘 < 門檻、無 reset 或 reset 已過,一律 False。"""
+    duration = _window_duration(w.get("label"))
+    if duration is None:
+        return False
+    if _remaining_pct(w) < EXPIRING_REMAINING_THRESHOLD:
+        return False
+    reset = w.get("reset")
+    if not reset:
+        return False
+    now_ts = now if now is not None else datetime.now(timezone.utc).timestamp()
+    time_until = reset - now_ts
+    if time_until <= 0:
+        return False
+    return time_until <= duration * EXPIRING_WINDOW_FRACTION
+
+
 def _tier(remaining):
     """剩餘量 -> 狀態分級,門檻與原生 app 相同。"""
     if remaining <= CRIT_REMAINING:
@@ -958,8 +1004,12 @@ def _print_dropdown(records):
             reset = w.get("reset")
             reset_text = f"   ⟳ {_rel(reset)}  ({_clock(reset)})" if reset else ""
             kind_text = " available" if w.get("kind") == "available" else ""
-            print(f"{label}  {_bar(w['pct'])}  {w['pct']:4.0f}%{kind_text}{reset_text} | "
-                  f"color={_hex_for_window(w)} font=Menlo size=13")
+            # 用不完就浪費:剩很多卻快 reset。整列轉靛藍 + ⏳ 標記(對齊原生視覺)。
+            expiring = _is_expiring_unused(w)
+            mark = "   ⏳ 即將重置" if expiring else ""
+            color = EXPIRING_COLOR if expiring else _hex_for_window(w)
+            print(f"{label}  {_bar(w['pct'])}  {w['pct']:4.0f}%{kind_text}{reset_text}{mark} | "
+                  f"color={color} font=Menlo size=13")
         print("---")
     print("立即刷新 | refresh=true sfimage=arrow.clockwise")
 
