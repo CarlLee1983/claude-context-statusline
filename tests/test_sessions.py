@@ -423,3 +423,36 @@ class PickTerminalTest(unittest.TestCase):
         self.assertIsNone(ghostty.pick_terminal({"cli": "claude"}, []))
         self.assertIsNone(ghostty.pick_terminal({"cwd": ""}, [{"id": "A", "cwd": "", "title": "x"}]))
         self.assertIsNone(ghostty.pick_terminal({"cwd": "/a/b/proj"}, None))
+
+
+class AntigravityTrackTest(unittest.TestCase):
+    def test_event_to_status(self):
+        self.assertEqual(track.antigravity_event_to_status("PostToolUse"), "running")
+        self.assertEqual(track.antigravity_event_to_status("Stop"), "idle")
+        self.assertIsNone(track.antigravity_event_to_status("PreToolUse"))
+        self.assertIsNone(track.antigravity_event_to_status(""))
+
+    def test_derive_id_from_cwd(self):
+        self.assertEqual(track.derive_antigravity_id("/Users/x/p"), "antigravity:/Users/x/p")
+
+    def test_fields_prefers_conversation_id(self):
+        data = {"conversationId": "conv-1",
+                "workspacePaths": ["/Users/x/p"],
+                "transcriptPath": "/t.jsonl"}
+        sid, cwd, tp = track.antigravity_fields(data)
+        self.assertEqual(sid, "conv-1")
+        self.assertEqual(cwd, "/Users/x/p")
+        self.assertEqual(tp, "/t.jsonl")
+
+    def test_fields_falls_back_to_cwd_derived_id(self):
+        data = {"workspacePaths": ["/Users/x/p"]}
+        sid, cwd, tp = track.antigravity_fields(data)
+        self.assertEqual(sid, "antigravity:/Users/x/p")
+        self.assertEqual(cwd, "/Users/x/p")
+        self.assertIsNone(tp)
+
+    def test_fields_empty_workspacepaths(self):
+        sid, cwd, tp = track.antigravity_fields({"conversationId": "c"})
+        self.assertEqual(sid, "c")
+        self.assertEqual(cwd, "")
+        self.assertIsNone(tp)

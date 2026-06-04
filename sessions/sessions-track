@@ -19,6 +19,12 @@ _CLAUDE_EVENT_STATUS = {
 _CLAUDE_DELETE_EVENTS = {"SessionEnd"}
 CODEX_COMPLETE = "agent-turn-complete"
 
+_ANTIGRAVITY_EVENT_STATUS = {
+    # agy 不送 UserPromptSubmit；只有工具呼叫期間（PostToolUse）與完成（Stop）
+    "PostToolUse": "running",
+    "Stop": "idle",
+}
+
 
 def default_dir(env):
     return env.get("AI_SESSIONS_DIR") or os.path.expanduser("~/.cache/ai-sessions")
@@ -32,6 +38,29 @@ def sanitize_id(session_id):
 def derive_codex_id(cwd):
     """Codex 無穩定 session id，以 cwd 衍生（同專案目錄視為同一 session）。"""
     return "codex:" + cwd
+
+
+def derive_antigravity_id(cwd):
+    """Antigravity 無 conversationId 時以 cwd 衍生（同專案目錄視為同一 session）。"""
+    return "antigravity:" + cwd
+
+
+def antigravity_event_to_status(event):
+    """Antigravity (agy) hook 事件 → 狀態字串；非追蹤事件回 None。"""
+    return _ANTIGRAVITY_EVENT_STATUS.get(event)
+
+
+def antigravity_fields(data):
+    """從 agy hook payload dict 取 (session_id, cwd, transcript_path)，不改輸入。
+    conversationId 優先；缺則以 cwd 衍生。workspacePaths 取第一個字串。"""
+    cwd = ""
+    wp = data.get("workspacePaths")
+    if isinstance(wp, list) and wp and isinstance(wp[0], str):
+        cwd = wp[0]
+    conv = data.get("conversationId")
+    session_id = conv if conv else derive_antigravity_id(cwd)
+    tp = data.get("transcriptPath")
+    return session_id, cwd, tp
 
 
 def event_to_status(event):
