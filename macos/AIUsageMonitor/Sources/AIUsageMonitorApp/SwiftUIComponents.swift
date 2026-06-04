@@ -147,20 +147,23 @@ public struct BrandIconView: View {
     }
     
     public var body: some View {
-        let lowercased = name.lowercased()
-        if lowercased.contains("claude") {
-            ClaudeLogoShape()
-                .fill(Color(nsColor: ClaudeLogo.brandColor))
-        } else if lowercased.contains("codex") || lowercased.contains("openai") {
-            OpenAILogoView(color: .primary)
-        } else if lowercased.contains("antigravity") {
-            AntigravityLogoView()
-        } else if lowercased.contains("gemini") || lowercased.contains("google") {
-            GeminiLogoView()
-        } else {
-            Circle()
-                .fill(Color.secondary)
+        Group {
+            let lowercased = name.lowercased()
+            if lowercased.contains("claude") {
+                ClaudeLogoShape()
+                    .fill(Color(nsColor: ClaudeLogo.brandColor))
+            } else if lowercased.contains("codex") || lowercased.contains("openai") {
+                OpenAILogoView(color: Color(red: 25 / 255, green: 195 / 255, blue: 125 / 255))
+            } else if lowercased.contains("antigravity") {
+                AntigravityLogoView()
+            } else if lowercased.contains("gemini") || lowercased.contains("google") {
+                GeminiLogoView()
+            } else {
+                Circle()
+                    .fill(Color.secondary)
+            }
         }
+        .frame(width: 16, height: 16)
     }
 }
 
