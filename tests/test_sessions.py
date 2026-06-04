@@ -25,6 +25,7 @@ def _load(modname, filename):
 
 track = _load("sessions_track", "sessions-track")
 setup = _load("sessions_setup", "sessions-setup")
+dashboard = _load("sessions_dashboard", "dashboard.py")
 
 
 class EventToStatusTest(unittest.TestCase):
@@ -321,3 +322,46 @@ class OrchestrationTest(unittest.TestCase):
         statuses = {r["target"]: r["status"] for r in results}
         self.assertEqual(statuses[self.claude], "error")
         self.assertEqual(statuses[self.codex], "ok")  # Codex 不受 Claude 失敗影響
+
+
+class DashboardLogicTest(unittest.TestCase):
+    def test_sort_waiting_first_then_running_then_idle(self):
+        recs = [{"status": "idle", "updated_at": 5},
+                {"status": "waiting", "updated_at": 1},
+                {"status": "running", "updated_at": 9}]
+        ordered = sorted(recs, key=dashboard.sort_key)
+        self.assertEqual([r["status"] for r in ordered],
+                         ["waiting", "running", "idle"])
+
+    def test_is_stale_threshold(self):
+        self.assertTrue(dashboard.is_stale({"updated_at": 0}, now=2000, threshold=1800))
+        self.assertFalse(dashboard.is_stale({"updated_at": 1500}, now=2000, threshold=1800))
+
+    def test_humanize(self):
+        self.assertEqual(dashboard.humanize(45), "45s")
+        self.assertEqual(dashboard.humanize(120), "2m")
+        self.assertEqual(dashboard.humanize(7200), "2h")
+
+    def test_format_row_contains_basename_and_status(self):
+        row = dashboard.format_row(
+            {"status": "waiting", "cli": "claude", "cwd": "/Users/x/proj", "updated_at": 90},
+            now=100)
+        self.assertIn("waiting", row)
+        self.assertIn("proj", row)
+        self.assertIn("claude", row)
+
+    def test_load_records_skips_bad_files(self):
+        d = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with open(os.path.join(d, "good.json"), "w") as f:
+            json.dump({"status": "idle", "cwd": "/p", "updated_at": 1}, f)
+        with open(os.path.join(d, "bad.json"), "w") as f:
+            f.write("NOT JSON")
+        with open(os.path.join(d, "ignore.txt"), "w") as f:
+            f.write("x")
+        recs = dashboard.load_records(d)
+        self.assertEqual(len(recs), 1)
+        self.assertEqual(recs[0]["cwd"], "/p")
+
+    def test_load_records_missing_dir_returns_empty(self):
+        self.assertEqual(dashboard.load_records("/no/such/dir"), [])
