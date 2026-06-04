@@ -83,7 +83,34 @@ def format_row(record, now):
 
 # ---- curses 薄殼（不單測；永不崩潰）---------------------------------------
 HEADER = "  狀態      CLI     目錄                      時間  路徑"
-HELP = "  j/k 移動 · r 刷新 · Enter 複製路徑 · q 離開"
+HELP = "  j/k 移動 · r 刷新 · Enter 跳到 · c 複製 · q 離開"
+
+
+def _load_ghostty():
+    """懶載入同目錄的 ghostty 模組（dashboard 被 importlib 以非標準名載入時，
+    sys.path 可能沒有 sessions/，故顯式補上）。"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import ghostty
+    return ghostty
+
+
+def _jump(record):
+    """focus 到該 session 的 Ghostty 分頁。回提示訊息（成功為空字串）。永不崩潰。"""
+    try:
+        gh = _load_ghostty()
+        terms = gh.list_terminals()
+        if not terms:
+            return "找不到 Ghostty 分頁（需 Ghostty 1.3+ 並核准自動化權限）"
+        tid = gh.pick_terminal(record, terms)
+        if not tid:
+            return "找不到對應分頁"
+        if gh.focus_terminal(tid):
+            return ""
+        return "切換失敗（檢查 系統設定›隱私權›自動化）"
+    except Exception:
+        return "切換失敗"
 
 
 def _copy_path(path):
@@ -93,7 +120,7 @@ def _copy_path(path):
         pass
 
 
-def _draw(stdscr, records, selected, now):
+def _draw(stdscr, records, selected, now, message=""):
     stdscr.erase()
     height, width = stdscr.getmaxyx()
     title = f" AI session 總覽（{len(records)}）"
@@ -108,7 +135,8 @@ def _draw(stdscr, records, selected, now):
         stdscr.addnstr(row, 0, format_row(rec, now).ljust(width - 1), width - 1, attr)
     if not records and height > 4 and width > 5:
         stdscr.addnstr(3, 2, "（目前沒有 session；開個 Claude Code 跑跑看）", width - 3)
-    stdscr.addnstr(height - 1, 0, HELP[:width - 1], width - 1, curses.A_DIM)
+    footer = message or HELP
+    stdscr.addnstr(height - 1, 0, footer[:width - 1], width - 1, curses.A_DIM)
     stdscr.refresh()
 
 
@@ -118,13 +146,14 @@ def _loop(stdscr, directory):
     selected = 0
     last_load = 0.0
     records = []
+    message = ""
     while True:
         now = time.time()
         if now - last_load >= REFRESH_SEC:
             records = sorted(load_records(directory), key=sort_key)
             last_load = now
             selected = max(0, min(selected, len(records) - 1))
-        _draw(stdscr, records, selected, int(now))
+        _draw(stdscr, records, selected, int(now), message)
         try:
             ch = stdscr.getch()
         except curses.error:
@@ -133,12 +162,18 @@ def _loop(stdscr, directory):
             return
         if ch in (ord("j"), curses.KEY_DOWN):
             selected = min(selected + 1, max(0, len(records) - 1))
+            message = ""
         elif ch in (ord("k"), curses.KEY_UP):
             selected = max(selected - 1, 0)
+            message = ""
         elif ch == ord("r"):
             last_load = 0.0
-        elif ch in (curses.KEY_ENTER, 10, 13) and records:
+            message = ""
+        elif ch == ord("c") and records:
             _copy_path(records[selected].get("cwd", ""))
+            message = "已複製路徑"
+        elif ch in (curses.KEY_ENTER, 10, 13) and records:
+            message = _jump(records[selected])
         else:
             time.sleep(0.05)
 
