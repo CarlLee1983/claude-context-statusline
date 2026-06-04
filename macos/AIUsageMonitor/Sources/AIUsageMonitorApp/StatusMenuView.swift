@@ -89,9 +89,11 @@ struct ProviderCardView: View {
 
 public struct StatusMenuView: View {
     let snapshots: [ProviderSnapshot]
+    let maximumProviderListHeight: CGFloat?
     
-    public init(snapshots: [ProviderSnapshot]) {
+    public init(snapshots: [ProviderSnapshot], maximumProviderListHeight: CGFloat? = nil) {
         self.snapshots = snapshots
+        self.maximumProviderListHeight = maximumProviderListHeight
     }
     
     public var body: some View {
@@ -113,9 +115,15 @@ public struct StatusMenuView: View {
                     .frame(maxWidth: .infinity, alignment: .center)
                     .padding(.vertical, 16)
             } else {
-                ForEach(snapshots) { snapshot in
-                    ProviderCardView(snapshot: snapshot)
+                ScrollView(.vertical) {
+                    VStack(spacing: 12) {
+                        ForEach(snapshots) { snapshot in
+                            ProviderCardView(snapshot: snapshot)
+                        }
+                    }
                 }
+                .scrollIndicators(.visible)
+                .frame(maxHeight: maximumProviderListHeight ?? .infinity)
             }
         }
         .padding(16)

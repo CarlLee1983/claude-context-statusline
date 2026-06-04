@@ -54,6 +54,10 @@ can toggle it). Installing to `/Applications` first gives a stable path so the r
   falls back to the local `~/.config/opencode/antigravity-accounts.json` cooldown / ready state when
   that can't be captured. Mirrors the [SwiftBar plugin](../../swiftbar/README.en.md) approach.
 - **Native AppKit menu bar UI**: 5-minute auto-refresh plus a manual Refresh action.
+- **Menu bar and query settings**: **Show in Menu Bar** chooses which providers stay in the menu bar
+  summary; when all are unchecked, the app keeps one AI icon and still opens the details menu.
+  **Query Usage** chooses which providers are actually queried; unchecked providers are skipped on
+  refresh.
 
 > **The 5-minute interval is deliberately aligned with the SwiftBar plugin.** The
 > `StatusMenuController.refreshInterval` constant mirrors the plugin's `FETCH_TTL`, so both hit the
@@ -69,11 +73,13 @@ Sources/
 │   ├── AIUsageMonitorApp.swift        # App entry point
 │   ├── StatusMenuController.swift     # NSStatusItem, menu, refresh, Launch at Login
 │   ├── StatusMenuImageRenderer.swift  # Menu bar image (remaining % + status badge)
+│   ├── UsageMonitorSettingsStore.swift # UserDefaults settings storage
 │   ├── ClaudeLogo.swift               # Official Claude brand starburst (SVG path, same as SwiftBar)
 │   └── AntigravityLogo.swift          # Official Antigravity brand logo (base64, same as SwiftBar)
 └── AIUsageMonitorCore/         # Pure logic library (unit-testable)
     ├── UsageModels.swift              # Normalized usage data models
     ├── UsageSnapshotProvider.swift    # Provider protocol
+    ├── UsageMonitorSettings.swift     # Provider display/query settings model
     ├── LiveUsageSnapshotProvider.swift# Aggregates providers into a live snapshot
     ├── ClaudeUsageProvider.swift      # Claude: Keychain token → usage endpoint
     ├── ClaudeUsageParser.swift        # Parses the Anthropic usage response

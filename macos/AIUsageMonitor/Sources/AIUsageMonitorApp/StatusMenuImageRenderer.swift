@@ -28,6 +28,14 @@ enum StatusMenuImageRenderer {
         )
     }
 
+    static func renderIconOnly() -> RenderedStatus {
+        RenderedStatus(
+            image: drawIconOnly(),
+            fallbackTitle: "AI",
+            accessibilityTitle: "AI Usage Monitor"
+        )
+    }
+
     private struct Entry {
         let providerName: String
         let remaining: Int
@@ -91,6 +99,42 @@ enum StatusMenuImageRenderer {
 
         image.unlockFocus()
         image.size = NSSize(width: canvasSize.width / scale * scale, height: canvasSize.height)
+        return image
+    }
+
+    private static func drawIconOnly() -> NSImage {
+        let size = NSSize(width: 18, height: 18)
+        let image = NSImage(size: size)
+        image.isTemplate = false
+
+        image.lockFocus()
+        NSGraphicsContext.current?.imageInterpolation = .high
+
+        let rect = NSRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)
+        let background = NSBezierPath(ovalIn: rect)
+        NSColor.white.withAlphaComponent(0.16).setFill()
+        background.fill()
+        NSColor.white.withAlphaComponent(0.28).setStroke()
+        background.lineWidth = 1
+        background.stroke()
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 9, weight: .bold),
+            .foregroundColor: NSColor.white
+        ]
+        let title = NSString(string: "AI")
+        let titleSize = title.size(withAttributes: attributes)
+        title.draw(
+            in: NSRect(
+                x: (size.width - titleSize.width) / 2,
+                y: (size.height - titleSize.height) / 2 - 0.5,
+                width: titleSize.width,
+                height: titleSize.height
+            ),
+            withAttributes: attributes
+        )
+
+        image.unlockFocus()
         return image
     }
 

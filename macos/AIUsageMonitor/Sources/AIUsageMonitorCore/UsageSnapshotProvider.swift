@@ -4,6 +4,10 @@ public protocol UsageSnapshotProviding: Sendable {
     func snapshots() async -> [ProviderSnapshot]
 }
 
+public protocol ProviderSnapshotProviding: Sendable {
+    func snapshot() async -> ProviderSnapshot
+}
+
 public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
     public init() {}
 

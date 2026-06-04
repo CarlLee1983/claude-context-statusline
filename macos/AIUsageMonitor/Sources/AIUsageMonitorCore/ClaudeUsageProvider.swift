@@ -3,7 +3,7 @@ import Foundation
 /// Reads the Claude Code OAuth token from the macOS Keychain and queries the
 /// Anthropic usage endpoint. All failures collapse to an unavailable snapshot.
 /// The access token is only held in memory and never logged or rendered.
-public struct ClaudeUsageProvider: Sendable {
+public struct ClaudeUsageProvider: ProviderSnapshotProviding {
     public init() {}
 
     public func snapshot() async -> ProviderSnapshot {

@@ -9,7 +9,16 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-04
+
 ### Added 新增
+- 原生 App 選單設定：新增 **Show in Menu Bar** 與 **Query Usage** 兩組 provider checkbox。
+  前者控制選單列摘要保留 Claude Code / Codex / Antigravity 哪些 chip；全關時只保留單一 AI icon，
+  點開仍可看細節。後者控制刷新時實際查哪些 provider，關閉後不呼叫該來源。
+  Native app menu settings: add **Show in Menu Bar** and **Query Usage** provider checkboxes.
+  The former controls which Claude Code / Codex / Antigravity chips stay in the menu bar summary;
+  when all are off, only one AI icon remains while the dropdown still opens. The latter controls
+  which providers are actually queried on refresh.
 - **用不完就浪費（expiring-unused）提示**：當用量視窗**剩很多卻快 reset** 時（剩餘 ≥ 40% 且距
   reset ≤ 週期的 15%），原生 App 的進度條轉**靛藍 + 對角斜線**、`% remaining` 文字同步靛藍；
   SwiftBar 外掛對應的列轉靛藍並加 `⏳ 即將重置` 標記。週期由視窗 label（`5h`/`7d`）解析，

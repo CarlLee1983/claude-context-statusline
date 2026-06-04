@@ -12,5 +12,6 @@ let package = Package(
         .target(name: "AIUsageMonitorCore"),
         .executableTarget(name: "AIUsageMonitorApp", dependencies: ["AIUsageMonitorCore"]),
         .testTarget(name: "AIUsageMonitorCoreTests", dependencies: ["AIUsageMonitorCore"]),
+        .testTarget(name: "AIUsageMonitorAppTests", dependencies: ["AIUsageMonitorApp"]),
     ]
 )

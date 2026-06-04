@@ -7,7 +7,7 @@ import Foundation
 ///
 /// The data-fetching boundaries are injected so the orchestration is unit tested
 /// without driving a real TUI or touching the filesystem.
-public struct AntigravityUsageProvider: Sendable {
+public struct AntigravityUsageProvider: ProviderSnapshotProviding {
     private let captureText: @Sendable () -> String?
     private let loadAccounts: @Sendable () -> Data?
     private let now: @Sendable () -> Date

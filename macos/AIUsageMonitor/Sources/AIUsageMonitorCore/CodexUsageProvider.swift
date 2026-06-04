@@ -4,7 +4,7 @@ import Foundation
 /// feeds the `result` payload to `CodexRateLimitParser`. A watchdog guarantees
 /// the subprocess is terminated so this never hangs. Failures collapse to an
 /// unavailable snapshot.
-public struct CodexUsageProvider: Sendable {
+public struct CodexUsageProvider: ProviderSnapshotProviding {
     public init() {}
 
     public func snapshot() async -> ProviderSnapshot {
