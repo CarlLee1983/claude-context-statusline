@@ -86,6 +86,16 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 - 兩段式快取（`~/.cache/ai-usage/`）：`FETCH_TTL`（預設 300s）節流；失敗時沿用「上次成功值」並標「N 分前」，避免顯示 —，也避開端點 429。
 - 選單列圖示用 Pillow 渲染膠囊（無 Pillow 則退回文字）；狀態以剩餘量分級（`WARN_REMAINING` / `CRIT_REMAINING`），並用形狀角標雙重編碼（色盲友善）。
 
+### sessions 儀表板（`sessions/`）
+
+- 兩層分離：hook 觸發層（`sessions/track.sh`，薄殼，永不崩潰）與顯示層（`sessions/dashboard.py`，stdlib curses，每秒輪詢）互不耦合。
+- 狀態模型：`SessionStart → idle`、`UserPromptSubmit → running`、`Notification → waiting`、`Stop → idle`、`SessionEnd → 刪除記錄`；Codex `agent-turn-complete → idle`。排序 waiting > running > idle，30 分鐘未更新標 `(stale)`。
+- `sessions/notify.sh`（合併派發器）：同時觸發 bell（BEL）與 sessions（寫狀態），可升級已有的 bell-only Codex notify。
+- 階段二（Ghostty 原生）：`sessions/ghostty.py` 以 macOS `osascript` 橋接 Ghostty 1.3+
+  AppleScript 字典——`pick_terminal`（純函式，cwd + 標題啟發式選分頁，單測）+
+  `list_terminals` / `focus_terminal`（subprocess 薄邊界，不單測）。dashboard 的 `Enter`
+  懶載入 `ghostty` 並 focus 到對應分頁；`c` 複製路徑。不做即時預覽（Ghostty 字典無對應指令）。
+
 ## 慣例
 
 - 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。測試亦只用標準庫 `unittest`。

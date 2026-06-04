@@ -10,6 +10,12 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- **sessions 階段二**：儀表板 `Enter` 一鍵切到目標 AI session 的 Ghostty 分頁
+  （Ghostty 1.3+ 原生 AppleScript；`c` 改為複製路徑）。配對以 cwd + 標題啟發式，
+  永不崩潰；不含即時預覽（刻意取捨）。
+  **sessions phase 2**: dashboard `Enter` focuses the target AI session's Ghostty tab
+  (Ghostty 1.3+ native AppleScript; `c` now copies the path). Matching uses cwd +
+  title heuristic, never crashes; no live preview (deliberate trade-off).
 - 第五元件 `sessions/`：多 session 總覽儀表板（階段一）。
   Claude Code hooks（SessionStart/UserPromptSubmit/Stop/Notification）與 Codex notify（agent-turn-complete）
   → `sessions/track.sh` 寫 per-session JSON 至 `~/.cache/ai-sessions/`（支援 `AI_SESSIONS_DIR` 覆寫）

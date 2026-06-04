@@ -166,6 +166,9 @@ library — reads neither usage numbers nor rate limits.
 
 For full install and architecture see **[sessions/README.en.md](sessions/README.en.md)**.
 
+> On Ghostty, press `Enter` in the dashboard to jump straight to a session's tab
+> (Phase 2, native AppleScript).
+
 ```bash
 ./sessions/install.sh
 ./sessions/dashboard.py   # open the TUI
