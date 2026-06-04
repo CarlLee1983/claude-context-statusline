@@ -35,7 +35,7 @@ def apply_hook(data, event, command):
 
 
 def remove_hook(data, event, command):
-    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher。"""
+    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher；若該事件下已無 matcher，刪除該事件 key。"""
     hooks = dict(data.get("hooks", {}))
     arr = hooks.get(event)
     if not arr:
@@ -65,3 +65,72 @@ def remove_claude_hooks(data, command):
         data, c = remove_hook(data, ev, command)
         changed = changed or c
     return data, changed
+
+
+# ---- Codex: config.toml 的 notify 合併派發器（文字行掃描，不解析 TOML）------
+_NOTIFY_RE = re.compile(r"^\s*notify\s*=")
+_BELL_NOTIFY_SUBSTR = "bell/notify.sh"
+_OUR_NOTIFY_SUBSTR = "sessions/notify.sh"
+_MARKER_PREFIX = "# added by claude-context-statusline"
+
+
+def _toplevel_notify_index(lines):
+    """頂層 notify 行的索引（第一個 [table] 之前）；無則 -1。"""
+    for i, line in enumerate(lines):
+        s = line.lstrip()
+        if s.startswith("["):
+            return -1
+        if _NOTIFY_RE.match(line):
+            return i
+    return -1
+
+
+def apply_codex_dispatch(text, dispatch_args):
+    """回傳 (新 text, 是否變更)。
+    無 notify → 檔首 prepend dispatcher；bell 管理的 notify → 升級為 dispatcher；
+    已是我們的 → 不動；外來 notify → 不動（呼叫端負責警告）。"""
+    new_notify = "notify = [" + ", ".join(json.dumps(a) for a in dispatch_args) + "]"
+    lines = text.splitlines()
+    idx = _toplevel_notify_index(lines)
+    if idx < 0:
+        block = f"{MARKER}\n{new_notify}\n"
+        if text:
+            block += "\n"
+        return block + text, True
+    line = lines[idx]
+    if _OUR_NOTIFY_SUBSTR in line:
+        return text, False
+    if _BELL_NOTIFY_SUBSTR in line:
+        new_lines = list(lines)
+        new_lines[idx] = new_notify
+        if idx > 0 and new_lines[idx - 1].strip().startswith(_MARKER_PREFIX):
+            new_lines[idx - 1] = MARKER
+        else:
+            new_lines.insert(idx, MARKER)
+        new = "\n".join(new_lines)
+        if text.endswith("\n") and new and not new.endswith("\n"):
+            new += "\n"
+        return new, True
+    return text, False
+
+
+def remove_codex_dispatch(text):
+    """移除我們的 dispatcher 區段（MARKER 行 + 其後 notify 行 + 一個空行）。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if (lines[i].strip() == MARKER and i + 1 < len(lines)
+                and _OUR_NOTIFY_SUBSTR in lines[i + 1]):
+            removed = True
+            i += 2
+            if i < len(lines) and lines[i].strip() == "":
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True

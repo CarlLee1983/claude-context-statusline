@@ -217,3 +217,47 @@ class ClaudeHooksTest(unittest.TestCase):
     def test_remove_when_absent_reports_false(self):
         _out, changed = setup.remove_claude_hooks({}, self.CMD)
         self.assertFalse(changed)
+
+
+class CodexDispatchTest(unittest.TestCase):
+    ARGS = ["/abs/sessions/notify.sh", "codex"]
+    NOTIFY = 'notify = ["/abs/sessions/notify.sh", "codex"]'
+
+    def test_no_notify_prepends_block(self):
+        new, changed = setup.apply_codex_dispatch("model = \"x\"\n", self.ARGS)
+        self.assertTrue(changed)
+        self.assertTrue(new.startswith(setup.MARKER))
+        self.assertIn(self.NOTIFY, new)
+        self.assertIn('model = "x"', new)
+
+    def test_upgrades_bell_notify(self):
+        text = ('# added by claude-context-statusline bell/install.sh\n'
+                'notify = ["/abs/bell/notify.sh", "codex"]\n\nmodel = "x"\n')
+        new, changed = setup.apply_codex_dispatch(text, self.ARGS)
+        self.assertTrue(changed)
+        self.assertIn("sessions/notify.sh", new)
+        self.assertNotIn("bell/notify.sh", new)
+        self.assertIn(setup.MARKER, new)
+
+    def test_idempotent_when_already_ours(self):
+        text = f"{setup.MARKER}\n{self.NOTIFY}\n"
+        new, changed = setup.apply_codex_dispatch(text, self.ARGS)
+        self.assertFalse(changed)
+
+    def test_foreign_notify_left_untouched(self):
+        text = 'notify = ["/my/own/script"]\n'
+        new, changed = setup.apply_codex_dispatch(text, self.ARGS)
+        self.assertFalse(changed)
+        self.assertEqual(new, text)
+
+    def test_remove_our_dispatch(self):
+        text = f"{setup.MARKER}\n{self.NOTIFY}\n\nmodel = \"x\"\n"
+        new, changed = setup.remove_codex_dispatch(text)
+        self.assertTrue(changed)
+        self.assertNotIn("sessions/notify.sh", new)
+        self.assertNotIn(setup.MARKER, new)
+        self.assertIn('model = "x"', new)
+
+    def test_remove_when_absent(self):
+        new, changed = setup.remove_codex_dispatch('model = "x"\n')
+        self.assertFalse(changed)
