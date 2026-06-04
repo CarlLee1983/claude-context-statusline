@@ -2,6 +2,7 @@ import AIUsageMonitorCore
 import AppKit
 import Foundation
 import ServiceManagement
+import SwiftUI
 
 @MainActor
 final class StatusMenuController {
@@ -66,39 +67,13 @@ final class StatusMenuController {
     private func rebuildMenu() {
         let menu = NSMenu()
 
-        let header = NSMenuItem(title: "AI Usage Monitor", action: nil, keyEquivalent: "")
-        header.isEnabled = false
-        menu.addItem(header)
-        menu.addItem(.separator())
+        let view = StatusMenuView(snapshots: snapshots)
+        let hostingView = NSHostingView(rootView: view)
+        hostingView.translatesAutoresizingMaskIntoConstraints = false
 
-        if snapshots.isEmpty {
-            let empty = NSMenuItem(title: isRefreshing ? "Refreshing…" : "No usage data yet", action: nil, keyEquivalent: "")
-            empty.isEnabled = false
-            menu.addItem(empty)
-        } else {
-            for snapshot in snapshots {
-                let title = [snapshot.name, snapshot.plan].compactMap { $0 }.joined(separator: " · ")
-                let providerItem = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-                providerItem.isEnabled = false
-                menu.addItem(providerItem)
-
-                if let emptyDetailTitle = RemainingQuotaPresenter.emptyDetailTitle(for: snapshot) {
-                    let item = NSMenuItem(title: "  \(emptyDetailTitle)", action: nil, keyEquivalent: "")
-                    item.isEnabled = false
-                    menu.addItem(item)
-                }
-
-                for window in snapshot.windows {
-                    let item = NSMenuItem(
-                        title: "  \(RemainingQuotaPresenter.detailTitle(for: window))",
-                        action: nil,
-                        keyEquivalent: ""
-                    )
-                    item.isEnabled = false
-                    menu.addItem(item)
-                }
-            }
-        }
+        let customHostItem = NSMenuItem()
+        customHostItem.view = hostingView
+        menu.addItem(customHostItem)
 
         menu.addItem(.separator())
 
