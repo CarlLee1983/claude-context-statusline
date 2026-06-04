@@ -26,6 +26,7 @@ def _load(modname, filename):
 track = _load("sessions_track", "sessions-track")
 setup = _load("sessions_setup", "sessions-setup")
 dashboard = _load("sessions_dashboard", "dashboard.py")
+ghostty = _load("sessions_ghostty", "ghostty.py")
 
 
 class EventToStatusTest(unittest.TestCase):
@@ -382,3 +383,42 @@ class DashboardLogicTest(unittest.TestCase):
 
     def test_load_records_missing_dir_returns_empty(self):
         self.assertEqual(dashboard.load_records("/no/such/dir"), [])
+
+
+class PickTerminalTest(unittest.TestCase):
+    def test_single_cwd_match_returns_id(self):
+        terms = [{"id": "A", "cwd": "/a/b/proj", "title": "anything"}]
+        rec = {"cwd": "/a/b/proj", "cli": "claude"}
+        self.assertEqual(ghostty.pick_terminal(rec, terms), "A")
+
+    def test_prefers_cli_like_title_over_shell(self):
+        terms = [
+            {"id": "SH", "cwd": "/a/b/proj", "title": "…/a/b/proj"},
+            {"id": "CLI", "cwd": "/a/b/proj", "title": "⠂ Review task"},
+            {"id": "DEV", "cwd": "/a/b/proj", "title": "proj"},
+        ]
+        rec = {"cwd": "/a/b/proj", "cli": "claude"}
+        self.assertEqual(ghostty.pick_terminal(rec, terms), "CLI")
+
+    def test_all_shell_like_returns_first_match(self):
+        terms = [
+            {"id": "SH1", "cwd": "/a/b/proj", "title": "…/a/b/proj"},
+            {"id": "SH2", "cwd": "/a/b/proj", "title": "admin@host: ~"},
+        ]
+        rec = {"cwd": "/a/b/proj", "cli": "claude"}
+        self.assertEqual(ghostty.pick_terminal(rec, terms), "SH1")
+
+    def test_trailing_slash_normalized(self):
+        terms = [{"id": "A", "cwd": "/a/b/proj/", "title": "x"}]
+        rec = {"cwd": "/a/b/proj", "cli": "claude"}
+        self.assertEqual(ghostty.pick_terminal(rec, terms), "A")
+
+    def test_no_match_returns_none(self):
+        terms = [{"id": "A", "cwd": "/other", "title": "x"}]
+        rec = {"cwd": "/a/b/proj", "cli": "claude"}
+        self.assertIsNone(ghostty.pick_terminal(rec, terms))
+
+    def test_bad_input_returns_none(self):
+        self.assertIsNone(ghostty.pick_terminal(None, []))
+        self.assertIsNone(ghostty.pick_terminal({"cli": "claude"}, []))
+        self.assertIsNone(ghostty.pick_terminal({"cwd": ""}, [{"id": "A", "cwd": "", "title": "x"}]))
