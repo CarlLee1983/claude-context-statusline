@@ -143,4 +143,53 @@ struct RemainingQuotaPresenterTests {
                 "7d: 87% remaining · used 13% · reset \(reset.formatted(date: .abbreviated, time: .shortened))"
         )
     }
+
+    @Test("parses fixed window duration from the window label")
+    func parsesWindowDurationFromLabel() {
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "5h") == TimeInterval(5 * 3600))
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "7d") == TimeInterval(7 * 86_400))
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "2w") == TimeInterval(2 * 604_800))
+        // case-insensitive and tolerant of an interior space
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "7D") == TimeInterval(7 * 86_400))
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "5 h") == TimeInterval(5 * 3600))
+        // month unit maps to a 30-day window
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "1m") == TimeInterval(2_592_000))
+        // unparseable labels yield nil (Antigravity model names, free-form, empty)
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "Gemini 3.5 Flash (Medium)") == nil)
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "Requests") == nil)
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "") == nil)
+        #expect(RemainingQuotaPresenter.windowDuration(forLabel: "abc") == nil)
+    }
+
+    @Test("flags a window as expiring-unused only when quota is high and reset is imminent")
+    func flagsExpiringUnusedWindows() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        // helper: a used window resetting `seconds` from now
+        func window(_ label: String, used: Double, resetIn seconds: TimeInterval) -> UsageWindow {
+            UsageWindow(label: label, percent: used, kind: .used, resetAt: now.addingTimeInterval(seconds))
+        }
+
+        // 5h window, 55% remaining (used 45%), reset in 30 min → within 45-min tail → true
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 45, resetIn: 30 * 60), now: now) == true)
+        // 5h window, same quota, reset in 2 h → outside the 15% tail → false
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 45, resetIn: 2 * 3600), now: now) == false)
+        // 7d window, 55% remaining, reset in 20 h → within ~25.2 h tail → true
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("7d", used: 45, resetIn: 20 * 3600), now: now) == true)
+        // remaining 30% (< 40 threshold), reset imminent → false
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 70, resetIn: 10 * 60), now: now) == false)
+        // boundary: exactly 40% remaining (used 60) → true (>=)
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 60, resetIn: 10 * 60), now: now) == true)
+        // boundary: reset exactly at duration*0.15 (5h → 2700s) → true (<=)
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 45, resetIn: 2700), now: now) == true)
+        // reset already passed → false
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: window("5h", used: 45, resetIn: -600), now: now) == false)
+        // no resetAt → false
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: UsageWindow(label: "5h", percent: 45, kind: .used), now: now) == false)
+        // unparseable label (Antigravity model name) → false
+        #expect(RemainingQuotaPresenter.isExpiringUnused(for: UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 40, kind: .available, resetAt: now.addingTimeInterval(60)), now: now) == false)
+        // .available kind: 55% available (already remaining), reset imminent → true
+        #expect(RemainingQuotaPresenter.isExpiringUnused(
+            for: UsageWindow(label: "5h", percent: 55, kind: .available, resetAt: now.addingTimeInterval(20 * 60)),
+            now: now) == true)
+    }
 }

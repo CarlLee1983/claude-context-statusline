@@ -8,6 +8,40 @@ public enum RemainingTier: Equatable, Sendable {
 }
 
 public enum RemainingQuotaPresenter {
+    /// Remaining-quota threshold (percent) above which an imminent reset is
+    /// treated as "use it or lose it". See `isExpiringUnused`.
+    public static let expiringRemainingThreshold = 40
+
+    /// Fraction of the window length that counts as "soon to reset".
+    public static let expiringWindowFraction = 0.15
+
+    /// Parses a fixed window length from a label like "5h" / "7d" / "2w".
+    /// Pure and total: free-form labels (e.g. Antigravity model names) and
+    /// anything unrecognized yield nil. Unit map: h=hour, d=day, w=week,
+    /// m=30-day month.
+    public static func windowDuration(forLabel label: String) -> TimeInterval? {
+        let unitSeconds: [Character: TimeInterval] = [
+            "h": 3600, "d": 86_400, "w": 604_800, "m": 2_592_000
+        ]
+        let trimmed = label.trimmingCharacters(in: .whitespaces).lowercased()
+        guard let unit = trimmed.last, let seconds = unitSeconds[unit] else { return nil }
+        let numberPart = trimmed.dropLast().trimmingCharacters(in: .whitespaces)
+        guard let value = Int(numberPart), value > 0 else { return nil }
+        return Double(value) * seconds
+    }
+
+    /// True when a window has lots of quota left AND resets soon — the unused
+    /// quota will roll over (be "wasted") on reset. Orthogonal to `RemainingTier`.
+    /// Total: missing reset, past reset, or unparseable window length → false.
+    public static func isExpiringUnused(for window: UsageWindow, now: Date = .now) -> Bool {
+        guard let duration = windowDuration(forLabel: window.label) else { return false }
+        guard remainingPercent(for: window) >= expiringRemainingThreshold else { return false }
+        guard let resetAt = window.resetAt else { return false }
+        let timeUntilReset = resetAt.timeIntervalSince(now)
+        guard timeUntilReset > 0 else { return false }
+        return timeUntilReset <= duration * expiringWindowFraction
+    }
+
     /// Map a remaining percent (0...100) to a status tier: <= 10 critical,
     /// <= 40 warn (warns once usage passes 60%), otherwise good.
     public static func tier(forRemaining remaining: Int) -> RemainingTier {
