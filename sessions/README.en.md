@@ -129,7 +129,7 @@ back to `bell/notify.sh`. To keep Codex bell notifications, run afterwards:
 | `q` | quit |
 
 The TUI auto-polls the state directory every second; `r` forces an immediate re-read.
-Status is encoded with **color + emoji + shape glyph** (colorblind-friendly).
+Status is **dual-encoded** with an emoji glyph + a shape badge (colorblind-friendly).
 
 ## Never-crash guarantee
 
