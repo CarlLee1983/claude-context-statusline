@@ -1,0 +1,49 @@
+#!/usr/bin/env python3
+"""sessions-track — 把 AI CLI 的 hook 事件映射成 session 狀態，寫入狀態目錄。
+
+純標準庫、零相依。純函式 + 薄 I/O。永不崩潰：__main__ 任何例外都靜默 exit 0。
+honors AI_SESSIONS_DIR。
+"""
+import json
+import os
+import re
+import sys
+import time
+
+_CLAUDE_EVENT_STATUS = {
+    "SessionStart": "idle",
+    "UserPromptSubmit": "running",
+    "Notification": "waiting",
+    "Stop": "idle",
+}
+_CLAUDE_DELETE_EVENTS = {"SessionEnd"}
+CODEX_COMPLETE = "agent-turn-complete"
+
+
+def default_dir(env):
+    return env.get("AI_SESSIONS_DIR") or os.path.expanduser("~/.cache/ai-sessions")
+
+
+def sanitize_id(session_id):
+    """檔名安全化：非 [A-Za-z0-9._-] 換成底線；空字串回 'unknown'。"""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", session_id) or "unknown"
+
+
+def derive_codex_id(cwd):
+    """Codex 無穩定 session id，以 cwd 衍生（同專案目錄視為同一 session）。"""
+    return "codex:" + cwd
+
+
+def event_to_status(event):
+    """Claude hook 事件 → 狀態字串；非追蹤事件回 None。"""
+    return _CLAUDE_EVENT_STATUS.get(event)
+
+
+def merge_record(old, new_fields, now):
+    """合併狀態紀錄：保留既有 started_at、更新 updated_at 與 new_fields。
+    old 為 dict 或 None；不改輸入，回傳新 dict。"""
+    started = (old or {}).get("started_at", now)
+    record = {**(old or {}), **new_fields}
+    record["started_at"] = started
+    record["updated_at"] = now
+    return record
