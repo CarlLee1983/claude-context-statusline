@@ -422,3 +422,4 @@ class PickTerminalTest(unittest.TestCase):
         self.assertIsNone(ghostty.pick_terminal(None, []))
         self.assertIsNone(ghostty.pick_terminal({"cli": "claude"}, []))
         self.assertIsNone(ghostty.pick_terminal({"cwd": ""}, [{"id": "A", "cwd": "", "title": "x"}]))
+        self.assertIsNone(ghostty.pick_terminal({"cwd": "/a/b/proj"}, None))

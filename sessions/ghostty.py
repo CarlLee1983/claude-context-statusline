@@ -42,6 +42,8 @@ def pick_terminal(record, terminals):
     純函式、不改輸入。無 cwd 對應回 None。"""
     if not isinstance(record, dict):
         return None
+    if not isinstance(terminals, (list, tuple)):
+        return None
     target = _norm_cwd(record.get("cwd", ""))
     if not target:
         return None
@@ -52,4 +54,4 @@ def pick_terminal(record, terminals):
     cli_like = [t for t in matches
                 if not _title_is_pathlike(t.get("title", ""), target)]
     chosen = cli_like[0] if cli_like else matches[0]
-    return chosen.get("id") or None
+    return chosen.get("id")
