@@ -5,6 +5,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -62,6 +63,7 @@ class TrackMainTest(unittest.TestCase):
     def setUp(self):
         self.dir = os.path.realpath(tempfile.mkdtemp())
         self.env = {"AI_SESSIONS_DIR": self.dir}
+        self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
 
     def _read(self, session_id):
         path = os.path.join(self.dir, track.sanitize_id(session_id) + ".json")
@@ -100,14 +102,8 @@ class TrackMainTest(unittest.TestCase):
 
     def test_codex_agent_turn_complete_writes_idle(self):
         payload = json.dumps({"type": "agent-turn-complete", "last-assistant-message": "hi"})
-        cwd = self.dir
-        old = os.getcwd()
-        os.chdir(cwd)
-        try:
-            track.main(["codex", payload], env=self.env, now=10)
-        finally:
-            os.chdir(old)
-        rec = self._read(track.derive_codex_id(cwd))
+        track.main(["codex", payload], env=self.env, now=10, cwd=self.dir)
+        rec = self._read(track.derive_codex_id(self.dir))
         self.assertEqual(rec["status"], "idle")
         self.assertEqual(rec["cli"], "codex")
 

@@ -64,9 +64,16 @@ def write_record(directory, session_id, fields, now):
     path = os.path.join(directory, sanitize_id(session_id) + ".json")
     record = merge_record(_read_record(path), {**fields, "session_id": session_id}, now)
     tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(record, f, ensure_ascii=False)
-    os.replace(tmp, path)
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(record, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
     return record
 
 
@@ -109,10 +116,11 @@ def _handle_codex(directory, payload, cwd, now):
                  {"cli": "codex", "status": "idle", "cwd": cwd}, now)
 
 
-def main(argv=None, stdin=None, env=None, now=None):
+def main(argv=None, stdin=None, env=None, now=None, cwd=None):
     argv = list(sys.argv[1:] if argv is None else argv)
     env = os.environ if env is None else env
     now = int(time.time()) if now is None else now
+    cwd = os.getcwd() if cwd is None else cwd
     directory = default_dir(env)
     src = argv[0] if argv else ""
     if src == "claude":
@@ -120,7 +128,7 @@ def main(argv=None, stdin=None, env=None, now=None):
         _handle_claude(directory, text, now)
     elif src == "codex":
         payload = argv[1] if len(argv) > 1 else ""
-        _handle_codex(directory, payload, os.getcwd(), now)
+        _handle_codex(directory, payload, cwd, now)
     return 0
 
 
