@@ -2,12 +2,14 @@
 
 [繁體中文](README.md) · **English**
 
-A small toolkit for keeping **AI CLI usage visible and turn completion noticed** on macOS.
+A small toolkit for keeping **AI CLI usage visible, turn completion noticed, and
+multi-session status at a glance** on macOS.
 It started as a Claude Code context statusline and grew into two ways to keep subscription
-**rate-limit headroom** in the macOS menu bar (a native app and a SwiftBar plugin), plus a
-completion bell that rings the terminal BEL at turn-end to trigger a Ghostty tab marker.
+**rate-limit headroom** in the macOS menu bar (a native app and a SwiftBar plugin),
+a completion bell that rings the terminal BEL at turn-end to trigger a Ghostty tab marker,
+and a cross-session dashboard that shows the live status of every AI CLI session at once.
 
-## Four tools
+## Five tools
 
 | Tool | Where it shows | What it watches | Dependencies | Install |
 |------|----------------|-----------------|--------------|---------|
@@ -15,11 +17,14 @@ completion bell that rings the terminal BEL at turn-end to trigger a Ghostty tab
 | [**AI Usage Monitor (native app)**](macos/AIUsageMonitor/README.en.md) | macOS menu bar | Claude Code + Codex + Antigravity **rate limits** (5h / 7d headroom) | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor` (or `./Scripts/install-app.sh`) |
 | [**SwiftBar plugin**](swiftbar/README.en.md) | macOS menu bar (via SwiftBar) | Claude Code + Codex (+ Antigravity) **rate limits** | SwiftBar + `python3` (Pillow optional) | `brew install CarlLee1983/tap/swiftbar-ai-usage` (or `./swiftbar/install.sh`) |
 | [**Completion bell (`bell/`)**](bell/README.en.md) | Ghostty tab / Dock | **Completion event → terminal tab marker** (BEL) | System `python3`, Ghostty | `./bell/install.sh` |
+| [**Session dashboard (`sessions/`)**](sessions/README.en.md) | Terminal curses TUI | **Cross-session live status** (running / waiting / idle) | System `python3` | `./sessions/install.sh` |
 
 > Each component watches different data: **ctx-statusline** shows "how much of a single
 > session's context window is used"; the **native app** and **SwiftBar plugin** show "how
 > much of the subscription's 5-hour / 7-day rate limit is left"; **bell** watches
-> "when an AI CLI finishes a turn → terminal tab marker" and reads no usage numbers.
+> "when an AI CLI finishes a turn → terminal tab marker" and reads no usage numbers;
+> **sessions** watches "the current execution status of all AI CLI sessions" and reads
+> neither usage numbers nor rate limits.
 
 ---
 
@@ -148,6 +153,22 @@ For full install and architecture see **[bell/README.en.md](bell/README.en.md)**
 
 ```bash
 ./bell/install.sh
+```
+
+---
+
+## 5. Session dashboard (`sessions/`)
+
+When you have many Ghostty tabs running AI CLIs at once, a curses TUI shows the live
+status of every session (running / waiting / idle) along with each session's working
+directory. Supports Claude Code (four hook events) and Codex (notify). Pure standard
+library — reads neither usage numbers nor rate limits.
+
+For full install and architecture see **[sessions/README.en.md](sessions/README.en.md)**.
+
+```bash
+./sessions/install.sh
+./sessions/dashboard.py   # open the TUI
 ```
 
 ---

@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""sessions-track — 把 AI CLI 的 hook 事件映射成 session 狀態，寫入狀態目錄。
+
+純標準庫、零相依。純函式 + 薄 I/O。永不崩潰：__main__ 任何例外都靜默 exit 0。
+honors AI_SESSIONS_DIR。
+"""
+import json
+import os
+import re
+import sys
+import time
+
+_CLAUDE_EVENT_STATUS = {
+    "SessionStart": "idle",
+    "UserPromptSubmit": "running",
+    "Notification": "waiting",
+    "Stop": "idle",
+}
+_CLAUDE_DELETE_EVENTS = {"SessionEnd"}
+CODEX_COMPLETE = "agent-turn-complete"
+
+
+def default_dir(env):
+    return env.get("AI_SESSIONS_DIR") or os.path.expanduser("~/.cache/ai-sessions")
+
+
+def sanitize_id(session_id):
+    """檔名安全化：非 [A-Za-z0-9._-] 換成底線；空字串回 'unknown'。"""
+    return re.sub(r"[^A-Za-z0-9._-]", "_", session_id) or "unknown"
+
+
+def derive_codex_id(cwd):
+    """Codex 無穩定 session id，以 cwd 衍生（同專案目錄視為同一 session）。"""
+    return "codex:" + cwd
+
+
+def event_to_status(event):
+    """Claude hook 事件 → 狀態字串；非追蹤事件回 None。"""
+    return _CLAUDE_EVENT_STATUS.get(event)
+
+
+def merge_record(old, new_fields, now):
+    """合併狀態紀錄：保留既有 started_at、更新 updated_at 與 new_fields。
+    old 為 dict 或 None；不改輸入，回傳新 dict。
+    注意：new_fields 中的 started_at / updated_at 會被忽略。"""
+    started = (old or {}).get("started_at", now)
+    record = {**(old or {}), **new_fields}
+    record["started_at"] = started
+    record["updated_at"] = now
+    return record
+
+
+# ---- 薄 I/O ----------------------------------------------------------------
+def _read_record(path):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def write_record(directory, session_id, fields, now):
+    os.makedirs(directory, exist_ok=True)
+    path = os.path.join(directory, sanitize_id(session_id) + ".json")
+    record = merge_record(_read_record(path), {**fields, "session_id": session_id}, now)
+    tmp = path + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(record, f, ensure_ascii=False)
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise
+    return record
+
+
+def delete_record(directory, session_id):
+    path = os.path.join(directory, sanitize_id(session_id) + ".json")
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
+
+
+# ---- handlers + main -------------------------------------------------------
+def _handle_claude(directory, stdin_text, now):
+    data = json.loads(stdin_text)            # 壞 JSON → 例外 → __main__ 靜默吞
+    event = data.get("hook_event_name", "")
+    session_id = data.get("session_id") or ""
+    if not session_id:
+        return
+    if event in _CLAUDE_DELETE_EVENTS:
+        delete_record(directory, session_id)
+        return
+    status = event_to_status(event)
+    if status is None:
+        return
+    fields = {"cli": "claude", "status": status, "cwd": data.get("cwd", "")}
+    tp = data.get("transcript_path")
+    if tp:
+        fields["transcript_path"] = tp
+    write_record(directory, session_id, fields, now)
+
+
+def _handle_codex(directory, payload, cwd, now):
+    try:
+        data = json.loads(payload)
+    except (ValueError, TypeError):
+        return
+    if data.get("type") != CODEX_COMPLETE:
+        return
+    write_record(directory, derive_codex_id(cwd),
+                 {"cli": "codex", "status": "idle", "cwd": cwd}, now)
+
+
+def main(argv=None, stdin=None, env=None, now=None, cwd=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    env = os.environ if env is None else env
+    now = int(time.time()) if now is None else now
+    cwd = os.getcwd() if cwd is None else cwd
+    directory = default_dir(env)
+    src = argv[0] if argv else ""
+    if src == "claude":
+        text = (stdin if stdin is not None else sys.stdin).read()
+        _handle_claude(directory, text, now)
+    elif src == "codex":
+        payload = argv[1] if len(argv) > 1 else ""
+        _handle_codex(directory, payload, cwd, now)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception:
+        sys.exit(0)   # 永不崩潰：絕不讓狀態追蹤弄崩 host CLI

@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+"""sessions-setup — 把多 session 儀表板設定併入/移出 Claude / Codex 設定。
+
+純標準庫、零相依。純函式（apply_/remove_，不改輸入、回傳新值）+ 薄 I/O。
+honors CLAUDE_CONFIG_DIR / CODEX_HOME。
+"""
+import json
+import os
+import re
+import shutil
+import sys
+import time
+
+MARKER = "# added by claude-context-statusline sessions/install.sh"
+
+# 註冊的 Claude 事件：前四個寫狀態，SessionEnd 觸發刪檔（清掉結束的 session）。
+CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"]
+
+
+# ---- Claude Code: settings.json 的多 hook --------------------------------
+def _event_has_command(matchers, command):
+    return any(h.get("command") == command
+               for m in matchers for h in m.get("hooks", []))
+
+
+def apply_hook(data, event, command):
+    """回傳加入 (event, command) hook 的新 dict（以 command 比對，冪等；不改輸入）。"""
+    hooks = dict(data.get("hooks", {}))
+    arr = list(hooks.get(event, []))
+    if _event_has_command(arr, command):
+        return data
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    hooks = {**hooks, event: arr + [entry]}
+    return {**data, "hooks": hooks}
+
+
+def remove_hook(data, event, command):
+    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher；若該事件下已無 matcher，刪除該事件 key。"""
+    hooks = dict(data.get("hooks", {}))
+    arr = hooks.get(event)
+    if not arr:
+        return data, False
+    kept = [m for m in arr
+            if not any(h.get("command") == command for h in m.get("hooks", []))]
+    if len(kept) == len(arr):
+        return data, False
+    if kept:
+        hooks = {**hooks, event: kept}
+    else:
+        hooks = {k: v for k, v in hooks.items() if k != event}
+    return {**data, "hooks": hooks}, True
+
+
+def apply_claude_hooks(data, command):
+    """把 command 掛到 CLAUDE_EVENTS 全部事件下（冪等）。"""
+    for ev in CLAUDE_EVENTS:
+        data = apply_hook(data, ev, command)
+    return data
+
+
+def remove_claude_hooks(data, command):
+    """從 CLAUDE_EVENTS 全部事件移除 command；回傳 (新 dict, 是否有任一移除)。"""
+    changed = False
+    for ev in CLAUDE_EVENTS:
+        data, c = remove_hook(data, ev, command)
+        changed = changed or c
+    return data, changed
+
+
+# ---- Codex: config.toml 的 notify 合併派發器（文字行掃描，不解析 TOML）------
+_NOTIFY_RE = re.compile(r"^\s*notify\s*=")
+_BELL_NOTIFY_SUBSTR = "bell/notify.sh"     # 實務上由絕對路徑錨定
+_OUR_NOTIFY_SUBSTR = "sessions/notify.sh"  # 同上
+_MARKER_PREFIX = "# added by claude-context-statusline"
+# bell-setup 寫入時固定帶這個 marker；唯有「前一行正好是它」才視為 bell 託管、可安全升級。
+_BELL_MARKER = "# added by claude-context-statusline bell/install.sh"
+
+
+def _toplevel_notify_index(lines):
+    """頂層 notify 行的索引（第一個 [table] 之前）；無則 -1。"""
+    for i, line in enumerate(lines):
+        s = line.lstrip()
+        if s.startswith("["):
+            return -1
+        if _NOTIFY_RE.match(line):
+            return i
+    return -1
+
+
+def apply_codex_dispatch(text, dispatch_args):
+    """回傳 (新 text, 是否變更)。
+    無 notify → 檔首 prepend dispatcher；bell 管理的 notify → 升級為 dispatcher；
+    已是我們的 → 不動；外來 notify → 不動（呼叫端負責警告）。"""
+    new_notify = "notify = [" + ", ".join(json.dumps(a) for a in dispatch_args) + "]"
+    lines = text.splitlines()
+    idx = _toplevel_notify_index(lines)
+    if idx < 0:
+        block = f"{MARKER}\n{new_notify}\n"
+        if text:
+            block += "\n"
+        return block + text, True
+    line = lines[idx]
+    if _OUR_NOTIFY_SUBSTR in line:
+        return text, False
+    if (_BELL_NOTIFY_SUBSTR in line and idx > 0
+            and lines[idx - 1].strip() == _BELL_MARKER):
+        new_lines = list(lines)
+        new_lines[idx] = new_notify
+        new_lines[idx - 1] = MARKER
+        new = "\n".join(new_lines)
+        if text.endswith("\n") and new and not new.endswith("\n"):
+            new += "\n"
+        return new, True
+    return text, False
+
+
+def remove_codex_dispatch(text):
+    """移除我們的 dispatcher 區段（MARKER 行 + 其後 notify 行 + 一個空行）。"""
+    lines = text.splitlines()
+    out, removed, i = [], False, 0
+    while i < len(lines):
+        if (lines[i].strip() == MARKER and i + 1 < len(lines)
+                and _OUR_NOTIFY_SUBSTR in lines[i + 1]):
+            removed = True
+            i += 2
+            if i < len(lines) and lines[i].strip() == "":
+                i += 1
+            continue
+        out.append(lines[i])
+        i += 1
+    if not removed:
+        return text, False
+    new = "\n".join(out)
+    if text.endswith("\n") and new and not new.endswith("\n"):
+        new += "\n"
+    return new, True
+
+
+# ---- 薄 I/O（與 bell-setup 同形，刻意各自獨立、不跨元件 import）-------------
+def _read_text(path):
+    if not os.path.exists(path):
+        return ""
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
+def _backup(path):
+    if not os.path.exists(path):
+        return None
+    backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
+    shutil.copy(path, backup)
+    return backup
+
+
+def _write_text(path, text, mode=None):
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+    if mode is not None:
+        os.chmod(path, mode)
+
+
+def _result(target, status, detail=""):
+    return {"target": target, "status": status, "detail": detail}
+
+
+def _apply_json(path, apply_fn):
+    try:
+        text = _read_text(path)
+    except Exception as exc:
+        return _result(path, "error", f"讀取失敗：{exc}")
+    if text.strip():
+        try:
+            data = json.loads(text)
+        except ValueError:
+            return _result(path, "error", "settings.json 非合法 JSON，未變動")
+        if not isinstance(data, dict):
+            return _result(path, "error", "settings.json 頂層非物件，未變動")
+    else:
+        data = {}
+    new = apply_fn(data)
+    if new == data:
+        return _result(path, "skipped", "已安裝或無需變更")
+    try:
+        _backup(path)
+        _write_text(path, json.dumps(new, indent=2, ensure_ascii=False) + "\n")
+    except Exception as exc:
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+def _apply_text(path, apply_fn, mode=None):
+    try:
+        text = _read_text(path)
+    except Exception as exc:
+        return _result(path, "error", f"讀取失敗：{exc}")
+    new, changed = apply_fn(text)
+    if not changed:
+        return _result(path, "skipped", "已安裝或已有手動設定")
+    keep_mode = mode
+    if keep_mode is None and os.path.exists(path):
+        keep_mode = os.stat(path).st_mode & 0o777
+    try:
+        _backup(path)
+        _write_text(path, new, keep_mode)
+    except Exception as exc:
+        return _result(path, "error", f"寫入失敗：{exc}")
+    return _result(path, "ok")
+
+
+# ---- orchestration ---------------------------------------------------------
+def run_install(claude_path, claude_cmd, codex_path, codex_args):
+    return [
+        _apply_json(claude_path, lambda d: apply_claude_hooks(d, claude_cmd)),
+        _apply_text(codex_path, lambda t: apply_codex_dispatch(t, codex_args), mode=0o600),
+    ]
+
+
+def run_uninstall(claude_path, claude_cmd, codex_path):
+    return [
+        _apply_json(claude_path, lambda d: remove_claude_hooks(d, claude_cmd)[0]),
+        _apply_text(codex_path, remove_codex_dispatch, mode=0o600),
+    ]
+
+
+# ---- 路徑解析 + main --------------------------------------------------------
+def _paths(env):
+    claude = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    codex = env.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+    return (os.path.join(claude, "settings.json"),
+            os.path.join(codex, "config.toml"))
+
+
+def _arg_value(argv, flag):
+    if flag in argv:
+        i = argv.index(flag)
+        if i + 1 < len(argv):
+            return argv[i + 1]
+    return None
+
+
+def main(argv=None, env=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    env = os.environ if env is None else env
+    if not argv or argv[0] not in ("install", "uninstall"):
+        print("usage: sessions-setup install|uninstall --track <abs> --dispatch <abs>",
+              file=sys.stderr)
+        return 2
+    action = argv[0]
+    track = _arg_value(argv, "--track")
+    dispatch = _arg_value(argv, "--dispatch")
+    if not track:
+        print("!! --track <abs track.sh> 為必填", file=sys.stderr)
+        return 2
+    if action == "install" and not dispatch:
+        print("!! --dispatch <abs notify.sh> 為 install 時必填", file=sys.stderr)
+        return 2
+    claude_path, codex_path = _paths(env)
+    claude_cmd = f"{track} claude"
+    codex_args = [dispatch, "codex"]
+    if action == "install":
+        results = run_install(claude_path, claude_cmd, codex_path, codex_args)
+    else:
+        results = run_uninstall(claude_path, claude_cmd, codex_path)
+    for r in results:
+        mark = {"ok": "✓", "skipped": "•", "error": "!!"}[r["status"]]
+        print(f"   {mark} {r['target']} {r['detail']}".rstrip())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

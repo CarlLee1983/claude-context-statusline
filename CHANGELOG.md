@@ -10,6 +10,28 @@ All notable changes are documented here, following
 ## [Unreleased]
 
 ### Added 新增
+- 第五元件 `sessions/`：多 session 總覽儀表板（階段一）。
+  Claude Code hooks（SessionStart/UserPromptSubmit/Stop/Notification）與 Codex notify（agent-turn-complete）
+  → `sessions/track.sh` 寫 per-session JSON 至 `~/.cache/ai-sessions/`（支援 `AI_SESSIONS_DIR` 覆寫）
+  → `sessions/dashboard.py`（stdlib curses）每秒輪詢並渲染，狀態排序 waiting > running > idle，
+  超過 30 分鐘未更新標 `(stale)`；j/k 移動、r 刷新、Enter 複製工作目錄（pbcopy）、q 離開。
+  `sessions/notify.sh`（合併派發器）同時觸發 bell 與狀態追蹤，可升級已有的 bell-only Codex notify。
+  `sessions/install.sh` / `sessions/uninstall.sh`（備份、只增不刪、冪等，支援 `CLAUDE_CONFIG_DIR` /
+  `CODEX_HOME` / `AI_SESSIONS_DIR` 覆寫）；永不崩潰（track.sh 任何錯誤靜默 exit 0；curses 離開前還原終端機）；
+  雙語 README（`sessions/README.md` / `sessions/README.en.md`）。
+  tmux 階段二（tab 切換、capture-pane 預覽）列為後續。
+  Fifth component `sessions/`: multi-session overview dashboard (phase 1).
+  Claude Code hooks (SessionStart / UserPromptSubmit / Stop / Notification) and Codex notify
+  (agent-turn-complete) → `sessions/track.sh` writes per-session JSON to `~/.cache/ai-sessions/`
+  (`AI_SESSIONS_DIR` override supported) → `sessions/dashboard.py` (stdlib curses) polls every
+  second and renders, sorting waiting > running > idle, marking entries stale after 30 min;
+  j/k to move, r to refresh, Enter to copy working dir (pbcopy), q to quit.
+  `sessions/notify.sh` (combined dispatcher) fans out to both bell and session tracking,
+  and can upgrade an existing bell-only Codex notify.
+  `sessions/install.sh` / `sessions/uninstall.sh` (backup, additive-only, idempotent;
+  `CLAUDE_CONFIG_DIR` / `CODEX_HOME` / `AI_SESSIONS_DIR` overrides); never-crash guarantee
+  (track.sh swallows all errors, exit 0; curses restores terminal on exit);
+  bilingual READMEs. tmux phase 2 (tab switch, capture-pane preview) deferred.
 - 第四元件 `bell/`：AI CLI 完成提示（Ghostty 分頁標記）。
   Claude Code Stop hook + Codex notify（過濾 `agent-turn-complete`）+ Ghostty `bell-features = title,attention`；
   `bell/notify.sh`（BEL 發送器，永不崩潰）、`bell/bell-setup`（純函式合併邏輯）、`bell/install.sh`／`bell/uninstall.sh`
