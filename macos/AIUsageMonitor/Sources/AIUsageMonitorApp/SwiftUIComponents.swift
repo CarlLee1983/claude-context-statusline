@@ -176,28 +176,32 @@ public struct UsageProgressBarView: View {
     public let usedPercent: Int
     public let tier: RemainingTier
     public let detailText: String
-    
+    public let isExpiringUnused: Bool
+
     public init(
         label: String,
         remainingPercent: Int,
         usedPercent: Int,
         tier: RemainingTier,
-        detailText: String
+        detailText: String,
+        isExpiringUnused: Bool = false
     ) {
         self.label = label
         self.remainingPercent = remainingPercent
         self.usedPercent = usedPercent
         self.tier = tier
         self.detailText = detailText
+        self.isExpiringUnused = isExpiringUnused
     }
-    
+
     public init(window: UsageWindow, now: Date = .now) {
         self.label = window.label
         let remaining = RemainingQuotaPresenter.remainingPercent(for: window)
         self.remainingPercent = remaining
         self.usedPercent = window.kind == .used ? Int(window.percent.rounded()) : (100 - remaining)
         self.tier = RemainingQuotaPresenter.tier(forRemaining: remaining)
-        
+        self.isExpiringUnused = RemainingQuotaPresenter.isExpiringUnused(for: window, now: now)
+
         let resetText = window.resetAt.map { resetAt in
             if Calendar.current.isDate(resetAt, inSameDayAs: now) {
                 return "reset " + resetAt.formatted(date: .omitted, time: .shortened)
@@ -205,14 +209,17 @@ public struct UsageProgressBarView: View {
                 return "reset " + resetAt.formatted(date: .abbreviated, time: .shortened)
             }
         }
-        
+
         if let reset = resetText {
             self.detailText = reset
         } else {
             self.detailText = "No reset scheduled"
         }
     }
-    
+
+    // Indigo "expiring" color — distinct from the red/yellow/green severity scale.
+    private static let expiringColor = Color(red: 88 / 255, green: 86 / 255, blue: 214 / 255)
+
     private var tierColor: Color {
         switch tier {
         case .good:
@@ -223,7 +230,13 @@ public struct UsageProgressBarView: View {
             return Color(red: 255 / 255, green: 59 / 255, blue: 48 / 255) // Apple Red
         }
     }
-    
+
+    // When expiring-unused, the filled (remaining) segment switches to indigo
+    // and gains a diagonal-stripe overlay; otherwise it follows the severity tier.
+    private var barColor: Color {
+        isExpiringUnused ? Self.expiringColor : tierColor
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
@@ -233,22 +246,29 @@ public struct UsageProgressBarView: View {
                 Spacer()
                 Text("\(remainingPercent)% remaining")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(tierColor)
+                    .foregroundColor(barColor)
             }
-            
+
             // Progress Bar
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 3)
                         .fill(Color.primary.opacity(0.1))
-                    
+
                     RoundedRectangle(cornerRadius: 3)
-                        .fill(tierColor)
+                        .fill(barColor)
                         .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(remainingPercent) / 100.0)))
+                        .overlay {
+                            if isExpiringUnused {
+                                DiagonalStripes(spacing: 5)
+                                    .stroke(Color.white.opacity(0.55), lineWidth: 1.5)
+                            }
+                        }
+                        .clipShape(RoundedRectangle(cornerRadius: 3))
                 }
             }
             .frame(height: 6)
-            
+
             HStack {
                 Text("Used \(usedPercent)%")
                     .font(.system(size: 10))
@@ -263,3 +283,21 @@ public struct UsageProgressBarView: View {
     }
 }
 
+// 7. Diagonal stripe texture — overlaid on an "expiring-unused" quota segment.
+// A pattern cue (color-blind friendly) that pairs with the indigo at-risk color.
+private struct DiagonalStripes: Shape {
+    var spacing: CGFloat = 5
+
+    func path(in rect: CGRect) -> Path {
+        guard spacing > 0 else { return Path() }
+        var path = Path()
+        // 45° lines sweeping bottom-left → top-right, stepping across the rect.
+        var x = rect.minX - rect.height
+        while x < rect.maxX {
+            path.move(to: CGPoint(x: x, y: rect.maxY))
+            path.addLine(to: CGPoint(x: x + rect.height, y: rect.minY))
+            x += spacing
+        }
+        return path
+    }
+}
