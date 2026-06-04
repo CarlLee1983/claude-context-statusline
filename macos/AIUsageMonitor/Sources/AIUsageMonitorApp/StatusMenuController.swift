@@ -69,7 +69,7 @@ final class StatusMenuController {
 
         let view = StatusMenuView(snapshots: snapshots)
         let hostingView = NSHostingView(rootView: view)
-        hostingView.translatesAutoresizingMaskIntoConstraints = false
+        hostingView.frame = NSRect(x: 0, y: 0, width: 320, height: hostingView.fittingSize.height)
 
         let customHostItem = NSMenuItem()
         customHostItem.view = hostingView
