@@ -98,14 +98,15 @@ def _draw(stdscr, records, selected, now):
     height, width = stdscr.getmaxyx()
     title = f" AI session 總覽（{len(records)}）"
     stdscr.addnstr(0, 0, title.ljust(width - 1), width - 1, curses.A_BOLD)
-    stdscr.addnstr(1, 0, HEADER, width - 1, curses.A_DIM)
+    if height > 1:
+        stdscr.addnstr(1, 0, HEADER, width - 1, curses.A_DIM)
     for i, rec in enumerate(records):
         row = 2 + i
         if row >= height - 1:
             break
         attr = curses.A_REVERSE if i == selected else curses.A_NORMAL
         stdscr.addnstr(row, 0, format_row(rec, now).ljust(width - 1), width - 1, attr)
-    if not records:
+    if not records and height > 4 and width > 5:
         stdscr.addnstr(3, 2, "（目前沒有 session；開個 Claude Code 跑跑看）", width - 3)
     stdscr.addnstr(height - 1, 0, HELP[:width - 1], width - 1, curses.A_DIM)
     stdscr.refresh()
@@ -142,7 +143,7 @@ def _loop(stdscr, directory):
             time.sleep(0.05)
 
 
-def main(argv=None, env=None):
+def main(argv=None, env=None):  # argv 保留供未來旗標解析；目前未用
     env = os.environ if env is None else env
     directory = default_dir(env)
     try:
