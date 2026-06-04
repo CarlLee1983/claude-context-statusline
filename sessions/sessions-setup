@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""sessions-setup — 把多 session 儀表板設定併入/移出 Claude / Codex 設定。
+
+純標準庫、零相依。純函式（apply_/remove_，不改輸入、回傳新值）+ 薄 I/O。
+honors CLAUDE_CONFIG_DIR / CODEX_HOME。
+"""
+import json
+import os
+import re
+import shutil
+import sys
+import time
+
+MARKER = "# added by claude-context-statusline sessions/install.sh"
+
+# Claude：儀表板要追蹤的四個事件（同一個 command 掛在四個事件下）。
+CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification"]
+
+
+# ---- Claude Code: settings.json 的多 hook --------------------------------
+def _event_has_command(matchers, command):
+    return any(h.get("command") == command
+               for m in matchers for h in m.get("hooks", []))
+
+
+def apply_hook(data, event, command):
+    """回傳加入 (event, command) hook 的新 dict（以 command 比對，冪等；不改輸入）。"""
+    hooks = dict(data.get("hooks", {}))
+    arr = list(hooks.get(event, []))
+    if _event_has_command(arr, command):
+        return data
+    entry = {"hooks": [{"type": "command", "command": command}]}
+    hooks = {**hooks, event: arr + [entry]}
+    return {**data, "hooks": hooks}
+
+
+def remove_hook(data, event, command):
+    """回傳 (新 dict, 是否移除)。只移除引用到 command 的 matcher。"""
+    hooks = dict(data.get("hooks", {}))
+    arr = hooks.get(event)
+    if not arr:
+        return data, False
+    kept = [m for m in arr
+            if not any(h.get("command") == command for h in m.get("hooks", []))]
+    if len(kept) == len(arr):
+        return data, False
+    if kept:
+        hooks = {**hooks, event: kept}
+    else:
+        hooks = {k: v for k, v in hooks.items() if k != event}
+    return {**data, "hooks": hooks}, True
+
+
+def apply_claude_hooks(data, command):
+    """把 command 掛到 CLAUDE_EVENTS 全部事件下（冪等）。"""
+    for ev in CLAUDE_EVENTS:
+        data = apply_hook(data, ev, command)
+    return data
+
+
+def remove_claude_hooks(data, command):
+    """從 CLAUDE_EVENTS 全部事件移除 command；回傳 (新 dict, 是否有任一移除)。"""
+    changed = False
+    for ev in CLAUDE_EVENTS:
+        data, c = remove_hook(data, ev, command)
+        changed = changed or c
+    return data, changed

@@ -24,6 +24,7 @@ def _load(modname, filename):
 
 
 track = _load("sessions_track", "sessions-track")
+setup = _load("sessions_setup", "sessions-setup")
 
 
 class EventToStatusTest(unittest.TestCase):
@@ -178,3 +179,41 @@ class NotifyShTest(unittest.TestCase):
         proc = self._run('{"type":"task-started"}')
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(os.listdir(self.dir), [])
+
+
+class ClaudeHooksTest(unittest.TestCase):
+    CMD = "/abs/sessions/track.sh claude"
+
+    def test_apply_adds_all_four_events(self):
+        out = setup.apply_claude_hooks({}, self.CMD)
+        for ev in setup.CLAUDE_EVENTS:
+            self.assertEqual(out["hooks"][ev],
+                             [{"hooks": [{"type": "command", "command": self.CMD}]}])
+        self.assertEqual(setup.CLAUDE_EVENTS,
+                         ["SessionStart", "UserPromptSubmit", "Stop", "Notification"])
+
+    def test_apply_is_idempotent(self):
+        once = setup.apply_claude_hooks({}, self.CMD)
+        twice = setup.apply_claude_hooks(once, self.CMD)
+        self.assertEqual(once, twice)
+
+    def test_apply_preserves_existing_unrelated_hook(self):
+        data = {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "other"}]}]}}
+        out = setup.apply_claude_hooks(data, self.CMD)
+        cmds = [h["command"] for m in out["hooks"]["Stop"] for h in m["hooks"]]
+        self.assertIn("other", cmds)
+        self.assertIn(self.CMD, cmds)
+
+    def test_remove_drops_only_our_command(self):
+        data = setup.apply_claude_hooks(
+            {"hooks": {"Stop": [{"hooks": [{"type": "command", "command": "other"}]}]}},
+            self.CMD)
+        out, changed = setup.remove_claude_hooks(data, self.CMD)
+        self.assertTrue(changed)
+        cmds = [h["command"] for m in out["hooks"]["Stop"] for h in m["hooks"]]
+        self.assertEqual(cmds, ["other"])
+        self.assertNotIn("UserPromptSubmit", out["hooks"])
+
+    def test_remove_when_absent_reports_false(self):
+        _out, changed = setup.remove_claude_hooks({}, self.CMD)
+        self.assertFalse(changed)
