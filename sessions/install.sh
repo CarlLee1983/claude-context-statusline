@@ -20,7 +20,7 @@ if [ ! -x "$PYTHON" ]; then
   echo "!! $PYTHON not found (relies on macOS's built-in python3)." >&2
   exit 1
 fi
-if [ ! -f "$TRACK" ] || [ ! -f "$DISPATCH" ] || [ ! -f "$SETUP" ]; then
+if [ ! -f "$TRACK" ] || [ ! -f "$DISPATCH" ] || [ ! -f "$SETUP" ] || [ ! -f "$SCRIPT_DIR/sessions-track" ]; then
   echo "!! 找不到 sessions 元件檔案 / sessions component files missing." >&2
   exit 1
 fi

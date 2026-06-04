@@ -14,6 +14,11 @@ if [ ! -x "$PYTHON" ]; then
   exit 1
 fi
 
+if [ ! -f "$SETUP" ]; then
+  echo "!! 找不到 sessions 元件檔案 / sessions-setup missing." >&2
+  exit 1
+fi
+
 echo "==> 移除設定 / removing config (Claude / Codex)"
 "$PYTHON" "$SETUP" uninstall --track "$TRACK" --dispatch "$DISPATCH"
 
