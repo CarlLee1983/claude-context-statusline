@@ -8,7 +8,7 @@ Switch to another app while you wait for the AI; the Ghostty Dock icon bounces w
 it's done, and the tab title shows 🔔 when you return.
 
 > **How this differs from the other components**: `ctx-statusline` shows "how much of
-> the current session's context window is used"; the native app and SwiftBar plugin show
+> the current session's context window is used"; the native app shows
 > "how much of the subscription's 5h / 7d rate limit is left"; this component (`bell`)
 > watches **completion events → terminal tab marker** and reads no usage numbers at all.
 

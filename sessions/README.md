@@ -5,7 +5,7 @@
 同時跑多個 Ghostty 分頁的 AI CLI 時，隨時掌握「哪個 session 正在跑、哪個在等你輸入、哪個閒著」——搭配各 session 的工作目錄，以寬版 curses TUI 呈現。
 
 > **與其他元件的差別**：`ctx-statusline` 看的是「目前 session 把 context window 用了多少」；
-> 原生 App 與 SwiftBar 外掛看的是「訂閱方案的 5h/7d 速率限制還剩多少」；
+> 原生 App 看的是「訂閱方案的 5h/7d 速率限制還剩多少」；
 > `bell` 看的是「完成事件 → 終端機分頁標記」；
 > 本元件（sessions）看的是**跨 session 的即時狀態總覽**，不讀用量數字，也不讀速率限制。
 

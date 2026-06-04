@@ -38,7 +38,7 @@ else
   echo "    $SHA"
 fi
 
-for f in ctx-statusline ai-usage-monitor swiftbar-ai-usage; do
+for f in ctx-statusline ai-usage-monitor; do
   sed -e "s|archive/refs/tags/v[0-9][0-9.]*\\.tar\\.gz|archive/refs/tags/v$VERSION.tar.gz|" \
       -e "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA\"|" \
       "$SRC_DIR/$f.rb" > "$TAP_DIR/Formula/$f.rb"

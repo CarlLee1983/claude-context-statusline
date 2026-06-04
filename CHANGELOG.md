@@ -9,6 +9,19 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-04
+
+### Removed 移除
+- **淘汰 SwiftBar 外掛元件**:移除 `swiftbar/`(`ai-usage.60s.py` + install.sh + 雙語 README)、
+  `tests/test_ai_usage.py` 與 Homebrew tap 的 `swiftbar-ai-usage` formula。原生選單列 App
+  `ai-usage-monitor` 已完整涵蓋其功能(訂閱方案速率限制 5h/7d),不再維護重疊的外掛。
+  已用 brew 安裝者請 `brew uninstall carllee1983/tap/swiftbar-ai-usage`。
+  **Deprecate the SwiftBar plugin component**: remove `swiftbar/` (`ai-usage.60s.py` + install.sh
+  + bilingual READMEs), `tests/test_ai_usage.py`, and the `swiftbar-ai-usage` Homebrew formula.
+  The native menu-bar app `ai-usage-monitor` fully covers its functionality (subscription rate
+  limits, 5h/7d); the overlapping plugin is no longer maintained. If installed via brew, run
+  `brew uninstall carllee1983/tap/swiftbar-ai-usage`.
+
 ## [0.3.1] - 2026-06-04
 
 ### Fixed 修正

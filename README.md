@@ -3,22 +3,21 @@
 **繁體中文** · [English](README.en.md)
 
 一組讓 **AI CLI 用量隨時可見、跑完有提示、多 session 一眼掌握** 的 macOS 小工具。從最初的 Claude Code context 狀態列，
-延伸出兩種在 macOS 選單列常駐顯示「訂閱速率限制剩餘額度」的方式（原生選單列 App 與 SwiftBar 外掛），
+延伸出在 macOS 選單列常駐顯示「訂閱速率限制剩餘額度」的原生選單列 App，
 讓 AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁標記的完成提示元件，
 以及一次掌握所有 AI CLI session 狀態的跨 session 儀表板。
 
-## 五個工具
+## 四個工具
 
 | 工具 | 顯示位置 | 監看對象 | 相依 | 安裝 |
 |------|----------|----------|------|------|
 | [**ctx-statusline**](#1-context-狀態列ctx-statuslinepy) | Claude Code 狀態列 | 目前 session 的 **context window** 用量 | 系統 `python3`，零相依 | `brew install CarlLee1983/tap/ctx-statusline`（或 `./install.sh`） |
 | [**AI Usage Monitor（原生 App）**](macos/AIUsageMonitor/README.md) | macOS 選單列 | Claude Code + Codex + Antigravity 的 **速率限制**（5h / 7d 剩餘額度） | Swift 6 / macOS 14+ | `brew install CarlLee1983/tap/ai-usage-monitor`（或 `./Scripts/install-app.sh`） |
-| [**SwiftBar 外掛**](swiftbar/README.md) | macOS 選單列（透過 SwiftBar） | Claude Code + Codex（+ Antigravity）的 **速率限制** | SwiftBar + `python3`（Pillow 選用） | `brew install CarlLee1983/tap/swiftbar-ai-usage`（或 `./swiftbar/install.sh`） |
 | [**完成提示（bell/）**](bell/README.md) | Ghostty 分頁 / Dock | **完成事件 → 終端機分頁標記**（BEL） | 系統 `python3`、Ghostty | `./bell/install.sh` |
 | [**Session 儀表板（sessions/）**](sessions/README.md) | 終端機 curses TUI | **跨 session 的即時狀態**（running / waiting / idle） | 系統 `python3` | `./sessions/install.sh` |
 
 > 各元件監看的資料不同：**ctx-statusline** 看「單一 session 把 context window 用掉多少」；
-> **原生 App** 與 **SwiftBar 外掛** 看「訂閱方案的 5 小時 / 7 天速率限制還剩多少」；
+> **原生 App** 看「訂閱方案的 5 小時 / 7 天速率限制還剩多少」；
 > **bell** 看「AI CLI 何時跑完一輪 → 終端機分頁標記」，不讀用量數字；
 > **sessions** 看「所有 AI CLI session 目前的執行狀態」，不讀用量數字也不讀速率限制。
 
@@ -28,7 +27,7 @@
 
 ```bash
 brew tap CarlLee1983/tap
-brew install ctx-statusline ai-usage-monitor swiftbar-ai-usage
+brew install ctx-statusline ai-usage-monitor
 ```
 
 安裝後各自跑一次設定（不會在安裝期間改你的設定檔）：
@@ -36,10 +35,9 @@ brew install ctx-statusline ai-usage-monitor swiftbar-ai-usage
 ```bash
 ctx-statusline-setup     # 併入 ~/.claude/settings.json，然後重開 Claude Code session
 ai-usage-monitor         # 首次執行會把 App 裝到 ~/Applications 並啟動
-# SwiftBar 外掛：依 brew 安裝後的 caveats 提示 symlink 進 SwiftBar plugins 目錄
 ```
 
-只想裝其中一個？三個 formula 可單獨 `brew install`。
+只想裝其中一個？兩個 formula 可單獨 `brew install`。
 
 ---
 
@@ -127,16 +125,7 @@ cd macos/AIUsageMonitor
 
 ---
 
-## 3. SwiftBar 外掛（`swiftbar/`）
-
-若你已在用 [SwiftBar](https://github.com/swiftbar/SwiftBar)，可用單檔 Python 外掛取得同樣的速率限制資訊：
-選單列顯示 Claude Code 與 Codex（以及 Antigravity）的 5h / 7d 剩餘額度，下拉選單附進度條與 reset 時間。
-
-完整安裝與設定請見 **[swiftbar/README.md](swiftbar/README.md)**。
-
----
-
-## 4. 完成提示（`bell/`）
+## 3. 完成提示（`bell/`）
 
 AI CLI 跑完一輪時，透過終端機 BEL 觸發 Ghostty 把分頁或視窗標記為「需要注意」——
 切去別的 App 等 AI 回答時，Dock 圖示跳動提示你；回到視窗後分頁標題出現 🔔。
@@ -150,7 +139,7 @@ AI CLI 跑完一輪時，透過終端機 BEL 觸發 Ghostty 把分頁或視窗�
 
 ---
 
-## 5. Session 儀表板（`sessions/`）
+## 4. Session 儀表板（`sessions/`）
 
 同時跑多個 Ghostty 分頁的 AI CLI 時，以 curses TUI 一次顯示所有 session 的即時狀態
 （running / waiting / idle）及各 session 的工作目錄。追蹤 Claude Code、Codex 與
@@ -169,7 +158,7 @@ Antigravity 三種 AI CLI 的 session 狀態；純標準庫，不讀用量數字
 
 ## 開發
 
-ctx-statusline 與 SwiftBar 外掛皆為純標準庫 Python，無需安裝相依。執行測試：
+ctx-statusline 為純標準庫 Python，無需安裝相依。執行測試：
 
 ```bash
 python3 -m unittest discover -s tests -v

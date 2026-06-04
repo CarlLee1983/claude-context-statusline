@@ -6,7 +6,7 @@ AI CLI 跑完一輪時，透過終端機 BEL（`\a`）觸發 [Ghostty](https://g
 切去別的 App 等 AI 回答時，Ghostty Dock 圖示跳動提示你；回到視窗後分頁標題也出現 🔔。
 
 > **與其他元件的差別**：`ctx-statusline` 看的是「目前 session 把 context window 用了多少」；
-> 原生 App 與 SwiftBar 外掛看的是「訂閱方案的 5h/7d 速率限制還剩多少」；
+> 原生 App 看的是「訂閱方案的 5h/7d 速率限制還剩多少」；
 > 本元件（bell）看的是「完成事件 → 終端機分頁標記」，屬於**通知觸發**，不讀任何用量數字。
 
 ## 架構

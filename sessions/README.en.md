@@ -7,7 +7,7 @@ sessions are running, waiting for your input, or idle — along with each sessio
 working directory — in a wide curses TUI.
 
 > **How this differs from the other components**: `ctx-statusline` shows "how much of
-> the current session's context window is used"; the native app and SwiftBar plugin show
+> the current session's context window is used"; the native app shows
 > "how much of the subscription's 5h / 7d rate limit is left"; `bell` watches
 > "completion event → terminal tab marker"; this component (`sessions`) provides a
 > **cross-session live status overview** and reads neither usage numbers nor rate limits.

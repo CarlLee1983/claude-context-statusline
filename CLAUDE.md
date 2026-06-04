@@ -4,15 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 專案概述
 
-讓 AI CLI 用量隨時可見、跑完有提示、多 session 一眼掌握的 macOS 小工具集，目前有五個元件：
+讓 AI CLI 用量隨時可見、跑完有提示、多 session 一眼掌握的 macOS 小工具集，目前有四個元件：
 
 1. **`ctx-statusline.py`**（原始核心）：Claude Code 狀態列工具，常駐顯示目前 session 的 context window 佔用程度。純標準庫、零相依，搭配 `install.sh` / `uninstall.sh` 與 `tests/test_ctx_statusline.py`。
 2. **`macos/AIUsageMonitor`**：純 Swift 的 macOS 原生選單列 App，原生抓取 Claude 與 Codex 的速率限制（5h / 7d），每 5 分鐘自動刷新。
-3. **`swiftbar/ai-usage.60s.py`**：SwiftBar 外掛，單檔 Python 顯示 Claude、Codex、Antigravity 的速率限制；測試在 `tests/test_ai_usage.py`。
-4. **`bell/`**：AI CLI 完成提示——AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁/視窗標記。含 `bell/notify.sh`（BEL 發送器）、`bell/bell-setup`（合併邏輯）、`bell/install.sh` / `bell/uninstall.sh`；測試在 `tests/test_bell.py`。
-5. **`sessions/`**：多 session 總覽儀表板——Claude Code hooks、Codex notify 與 Antigravity plugin 觸發 `sessions/track.sh` 寫 per-session JSON；`sessions/dashboard.py`（stdlib curses）每秒輪詢並渲染跨 session 的即時狀態（running / waiting / idle）。含 `sessions/notify.sh`（合併派發器，兼容 bell）、`sessions/install.sh` / `sessions/uninstall.sh`；測試在 `tests/test_sessions.py`。
+3. **`bell/`**：AI CLI 完成提示——AI CLI 跑完一輪時透過終端機 BEL 觸發 Ghostty 分頁/視窗標記。含 `bell/notify.sh`（BEL 發送器）、`bell/bell-setup`（合併邏輯）、`bell/install.sh` / `bell/uninstall.sh`；測試在 `tests/test_bell.py`。
+4. **`sessions/`**：多 session 總覽儀表板——Claude Code hooks、Codex notify 與 Antigravity plugin 觸發 `sessions/track.sh` 寫 per-session JSON；`sessions/dashboard.py`（stdlib curses）每秒輪詢並渲染跨 session 的即時狀態（running / waiting / idle）。含 `sessions/notify.sh`（合併派發器，兼容 bell）、`sessions/install.sh` / `sessions/uninstall.sh`；測試在 `tests/test_sessions.py`。
 
-> 各元件監看的資料不同：**ctx-statusline** 看的是單一 session 的 **context window** 用量；**原生 App** 與 **SwiftBar 外掛** 看的是訂閱方案的 **速率限制（5h / 7d）剩餘額度**；**bell** 看的是「完成事件 → 終端機分頁標記」，不讀用量數字；**sessions** 看的是「所有 AI CLI session 目前的執行狀態」，不讀用量也不讀速率限制。
+> 各元件監看的資料不同：**ctx-statusline** 看的是單一 session 的 **context window** 用量；**原生 App** 看的是訂閱方案的 **速率限制（5h / 7d）剩餘額度**；**bell** 看的是「完成事件 → 終端機分頁標記」，不讀用量數字；**sessions** 看的是「所有 AI CLI session 目前的執行狀態」，不讀用量也不讀速率限制。
 
 ## 開發指令
 
@@ -24,8 +23,8 @@ python3 -m unittest discover -s tests -v
 echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
 
 # 檢查 shell 腳本（注意：zsh 下別用未加引號的變數展開多檔，會不分詞；直接列檔最穩）
-bash -n install.sh uninstall.sh swiftbar/install.sh bell/install.sh bell/uninstall.sh sessions/install.sh sessions/uninstall.sh sessions/track.sh sessions/notify.sh macos/AIUsageMonitor/Scripts/*.sh
-shellcheck install.sh uninstall.sh swiftbar/install.sh bell/install.sh bell/uninstall.sh sessions/install.sh sessions/uninstall.sh sessions/track.sh sessions/notify.sh macos/AIUsageMonitor/Scripts/*.sh
+bash -n install.sh uninstall.sh bell/install.sh bell/uninstall.sh sessions/install.sh sessions/uninstall.sh sessions/track.sh sessions/notify.sh macos/AIUsageMonitor/Scripts/*.sh
+shellcheck install.sh uninstall.sh bell/install.sh bell/uninstall.sh sessions/install.sh sessions/uninstall.sh sessions/track.sh sessions/notify.sh macos/AIUsageMonitor/Scripts/*.sh
 
 # 安裝到 ~/.claude/（複製腳本 + 併入 settings.json，會自動備份）
 # 可用 CLAUDE_CONFIG_DIR 指定其他設定目錄（測試安裝時很有用）
@@ -33,9 +32,6 @@ CLAUDE_CONFIG_DIR=$(mktemp -d) ./install.sh
 
 # 移除
 ./uninstall.sh
-
-# SwiftBar 外掛：直接執行看輸出（SwiftBar 純文字 + 中繼指令格式）
-./swiftbar/ai-usage.60s.py
 
 # bell 完成提示：安裝（三邊設定：Claude / Codex / Ghostty）
 ./bell/install.sh
@@ -54,7 +50,7 @@ cd macos/AIUsageMonitor && swift test
 cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.app
 ```
 
-驗證改動後，需**重新開啟一個 Claude Code session** 才會載入更新後的狀態列。`tests/` 因腳本名含連字號，用 `importlib` 依路徑載入模組（見測試檔開頭）；`tests/test_ai_usage.py` 同理載入 SwiftBar 外掛。
+驗證改動後，需**重新開啟一個 Claude Code session** 才會載入更新後的狀態列。`tests/` 因腳本名含連字號，用 `importlib` 依路徑載入模組（見測試檔開頭）。
 
 ## 架構重點
 
@@ -74,17 +70,10 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 
 - Swift Package（`swift-tools-version: 6.0`，macOS 14+），分兩個目標：可測試的純邏輯庫 `AIUsageMonitorCore` 與 AppKit 外殼 `AIUsageMonitorApp`。
 - provider 各自負責一個來源：`ClaudeUsageProvider`（Keychain token → Anthropic usage 端點）、`CodexUsageProvider`（`codex app-server` JSON-RPC）、`AntigravityUsageProvider`（先 PTY 驅動 `agy /usage`，退回讀帳號檔 cooldown），由 `LiveUsageSnapshotProvider` 彙整成快照。
-- `RemainingQuotaPresenter` 一律以「**剩餘**額度」決定顯示文字與狀態分級（非已用量）；SwiftBar 外掛刻意對齊這個邏輯。
-- Antigravity 取數對齊 SwiftBar：`AntigravityUsageTextCapture`（PTY thin boundary，不單測）+ `AntigravityUsageParser`（去 ANSI 解析面板）+ `AntigravityAccountsParser`（pure，帳號檔 cooldown）。注意 `AntigravityUsageParser.stripANSI` 必須用真實 ESC byte（`"\u{1B}"`）餵 ICU regex，不能用 raw string `\u{001B}`（ICU 不認得）。
+- `RemainingQuotaPresenter` 一律以「**剩餘**額度」決定顯示文字與狀態分級（非已用量）。
+- Antigravity 取數：`AntigravityUsageTextCapture`（PTY thin boundary，不單測）+ `AntigravityUsageParser`（去 ANSI 解析面板）+ `AntigravityAccountsParser`（pure，帳號檔 cooldown）。注意 `AntigravityUsageParser.stripANSI` 必須用真實 ESC byte（`"\u{1B}"`）餵 ICU regex，不能用 raw string `\u{001B}`（ICU 不認得）。
 - 開發指令：`cd macos/AIUsageMonitor && swift test`（測試）、`./Scripts/build-app.sh`（產 `.app` bundle，含 `LSUIElement`）、`./Scripts/install-app.sh`（build + 複製到 `/Applications`，可用 `APP_INSTALL_DIR` 覆寫、`APP_INSTALL_OPEN=0` 不自動開）。
 - 開機啟動：選單的 **Launch at Login** 用原生 `SMAppService.mainApp`（macOS 13+）註冊登入項目；需安裝到固定路徑（`/Applications`）才穩定，故先 `install-app.sh` 再開。
-
-### SwiftBar 外掛（`swiftbar/ai-usage.60s.py`）
-
-- 可擴充的 provider 架構：每個工具一個函式回傳「正規化」紀錄，加進檔尾 `PROVIDERS` 即生效。
-- **永不崩潰、絕不印出 token**：任一 provider 失敗只標 `ok=False`，不影響其他與整體輸出；`main()` 外層 try/except 兜底。
-- 兩段式快取（`~/.cache/ai-usage/`）：`FETCH_TTL`（預設 300s）節流；失敗時沿用「上次成功值」並標「N 分前」，避免顯示 —，也避開端點 429。
-- 選單列圖示用 Pillow 渲染膠囊（無 Pillow 則退回文字）；狀態以剩餘量分級（`WARN_REMAINING` / `CRIT_REMAINING`），並用形狀角標雙重編碼（色盲友善）。
 
 ### sessions 儀表板（`sessions/`）
 
@@ -104,5 +93,5 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 
 - 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。測試亦只用標準庫 `unittest`。
 - 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)、`TAIL_BYTES`(尾端讀取量)。
-- 文件採中英雙語：每處 `README.md`（繁中為主）都搭一份 `README.en.md`（英文）並同步更新——含頂層、`macos/AIUsageMonitor/`、`swiftbar/`、`bell/` 與 `sessions/`。頂層 README 為五工具總覽，細節連到各子目錄 README。變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
+- 文件採中英雙語：每處 `README.md`（繁中為主）都搭一份 `README.en.md`（英文）並同步更新——含頂層、`macos/AIUsageMonitor/`、`bell/` 與 `sessions/`。頂層 README 為四工具總覽，細節連到各子目錄 README。變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
 - 安裝/移除腳本支援 `CLAUDE_CONFIG_DIR` 覆寫設定目錄（預設 `~/.claude`）。

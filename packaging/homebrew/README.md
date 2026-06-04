@@ -1,6 +1,6 @@
 # Homebrew tap 維護
 
-本資料夾的 `Formula/*.rb` 是三個 formula 的**權威範本**。實際被使用者 tap 的是獨立 repo
+本資料夾的 `Formula/*.rb` 是兩個 formula 的**權威範本**。實際被使用者 tap 的是獨立 repo
 `CarlLee1983/homebrew-tap`；`Scripts/release.sh` 在發版時把範本填入版本與 sha256 後推到該 repo。
 
 ## 一次性建立 tap repo
@@ -28,7 +28,7 @@ Scripts/release.sh 0.2.0
 ```bash
 brew untap CarlLee1983/tap 2>/dev/null || true
 brew tap CarlLee1983/tap
-brew install --build-from-source ctx-statusline ai-usage-monitor swiftbar-ai-usage
+brew install --build-from-source ctx-statusline ai-usage-monitor
 brew audit --strict --online CarlLee1983/tap/ctx-statusline
 brew test CarlLee1983/tap/ctx-statusline
 ```

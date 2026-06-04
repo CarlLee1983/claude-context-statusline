@@ -3,8 +3,7 @@
 **繁體中文** · [English](README.en.md)
 
 純 Swift 的 macOS 選單列 App，原生抓取 AI CLI 的即時用量狀態，本機運作、不需 Python runtime。
-與 [SwiftBar 外掛](../../swiftbar/README.md) 看的是同一類「速率限制剩餘額度」資料，差別在這是
-獨立的原生 App、透過 AppKit `NSStatusItem` 常駐選單列。
+看的是訂閱方案的「速率限制剩餘額度」資料，透過 AppKit `NSStatusItem` 常駐選單列。
 
 ## 執行
 
@@ -53,16 +52,14 @@ APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
 - **Codex 即時用量**：`codex app-server` JSON-RPC rate limits，取 5h / 7d 視窗。
 - **Antigravity 即時用量**：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota；
   取不到時退回讀本機 `~/.config/opencode/antigravity-accounts.json` 的 cooldown / ready 狀態。
-  做法對齊 [SwiftBar 外掛](../../swiftbar/README.md)。
 - **原生 AppKit 選單列 UI**：每 5 分鐘自動刷新，另提供手動「Refresh」。
 - **選單列與查詢設定**：選單內的 **Show in Menu Bar** 可決定哪些 provider 保留在選單列摘要；
   全部取消時只保留單一 AI icon，點開仍顯示細節。**Query Usage** 可決定哪些 provider 需要實際查用量；
   取消後刷新不會呼叫該 provider。
 
-> **刷新間隔（5 分鐘）是刻意對齊 SwiftBar 外掛的**：常數 `StatusMenuController.refreshInterval`
-> 對應外掛的 `FETCH_TTL`，兩者對 usage 端點的真實呼叫頻率相同。顯示的是 5h / 7d 速率限制視窗，
-> 5 分鐘僅約佔 5h 視窗的 1.7%，粒度已足夠，又能避開端點自身的 429 限流；要即時數字時用選單的
-> 「Refresh」。要調整就改該常數。
+> **刷新間隔為 5 分鐘**：由常數 `StatusMenuController.refreshInterval` 控制，決定對 usage 端點的
+> 真實呼叫頻率。顯示的是 5h / 7d 速率限制視窗，5 分鐘僅約佔 5h 視窗的 1.7%，粒度已足夠，又能避開
+> 端點自身的 429 限流；要即時數字時用選單的「Refresh」。要調整就改該常數。
 
 ## 架構
 
@@ -73,8 +70,8 @@ Sources/
 │   ├── StatusMenuController.swift     # NSStatusItem、選單、自動刷新、Launch at Login
 │   ├── StatusMenuImageRenderer.swift  # 選單列圖示繪製（剩餘 % + 狀態角標）
 │   ├── UsageMonitorSettingsStore.swift # UserDefaults 設定儲存
-│   ├── ClaudeLogo.swift               # Claude 官方品牌 starburst（SVG path，與 SwiftBar 一致）
-│   └── AntigravityLogo.swift          # Antigravity 官方品牌 logo（base64，與 SwiftBar 一致）
+│   ├── ClaudeLogo.swift               # Claude 官方品牌 starburst（SVG path）
+│   └── AntigravityLogo.swift          # Antigravity 官方品牌 logo（base64）
 └── AIUsageMonitorCore/         # 純邏輯函式庫（可單元測試）
     ├── UsageModels.swift              # 正規化用量資料模型
     ├── UsageSnapshotProvider.swift    # provider 介面
@@ -94,7 +91,7 @@ Sources/
 ```
 
 設計上把所有可測試的邏輯放在 `AIUsageMonitorCore`，AppKit 外殼（`AIUsageMonitorApp`）只負責
-UI 與排程。狀態分級一律以「**剩餘**額度」計算（而非已用量），與 SwiftBar 外掛的判斷一致。
+UI 與排程。狀態分級一律以「**剩餘**額度」計算（而非已用量）。
 
 ## 顯示行為：用不完就浪費（expiring-unused）提示
 
@@ -106,7 +103,6 @@ reset 就回滿，沒用掉等於浪費），該進度條會換成**靛藍 + 對
 觸發條件（`RemainingQuotaPresenter.isExpiringUnused`，純函式、可單元測試）：視窗 label 解得出
 固定週期（`5h` / `7d`）、剩餘 **≥ 40%**、且距 reset **≤ 週期的 15%**（5h → <45 分、7d → <約
 25 小時）。Antigravity 是共用冷卻池、label 為模型名，解不出週期故天生不觸發。
-[SwiftBar 外掛](../../swiftbar/README.md) 對齊同一邏輯，以 `⏳ 即將重置` 標記呈現。
 
 ## 測試
 
