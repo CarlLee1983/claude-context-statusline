@@ -12,6 +12,7 @@ import sys
 import time
 
 MARKER = "# added by claude-context-statusline sessions/install.sh"
+AGY_PLUGIN_NAME = "ai-sessions"
 
 # 註冊的 Claude 事件：前四個寫狀態，SessionEnd 觸發刪檔（清掉結束的 session）。
 CLAUDE_EVENTS = ["SessionStart", "UserPromptSubmit", "Stop", "Notification", "SessionEnd"]
@@ -136,6 +137,21 @@ def remove_codex_dispatch(text):
     return new, True
 
 
+# ---- Antigravity: 專屬 agy plugin（獨立目錄，無需 merge）--------------------
+def antigravity_plugin_files(track_path):
+    """回傳 ai-sessions agy plugin 的 {相對檔名: 內容字串}（純函式、不做 I/O）。"""
+    hooks = {"hooks": {
+        "PostToolUse": [{"hooks": [{"type": "command",
+            "command": f"{track_path} antigravity PostToolUse", "async": False}]}],
+        "Stop": [{"hooks": [{"type": "command",
+            "command": f"{track_path} antigravity Stop", "async": False}]}],
+    }}
+    return {
+        "plugin.json": json.dumps({"name": AGY_PLUGIN_NAME}, ensure_ascii=False) + "\n",
+        "hooks.json": json.dumps(hooks, indent=2, ensure_ascii=False) + "\n",
+    }
+
+
 # ---- 薄 I/O（與 bell-setup 同形，刻意各自獨立、不跨元件 import）-------------
 def _read_text(path):
     if not os.path.exists(path):
@@ -208,27 +224,65 @@ def _apply_text(path, apply_fn, mode=None):
     return _result(path, "ok")
 
 
+def _apply_antigravity(plugin_dir, track_path):
+    files = antigravity_plugin_files(track_path)
+    try:
+        same = all(
+            os.path.exists(os.path.join(plugin_dir, rel))
+            and _read_text(os.path.join(plugin_dir, rel)) == content
+            for rel, content in files.items()
+        )
+        if same:
+            return _result(plugin_dir, "skipped", "已安裝")
+        os.makedirs(plugin_dir, exist_ok=True)
+        for rel, content in files.items():
+            _write_text(os.path.join(plugin_dir, rel), content)
+    except Exception as exc:
+        return _result(plugin_dir, "error", f"寫入失敗：{exc}")
+    return _result(plugin_dir, "ok")
+
+
+def _remove_antigravity(plugin_dir):
+    if not os.path.isdir(plugin_dir):
+        return _result(plugin_dir, "skipped", "未安裝")
+    try:
+        shutil.rmtree(plugin_dir)
+    except Exception as exc:
+        return _result(plugin_dir, "error", f"移除失敗：{exc}")
+    return _result(plugin_dir, "ok")
+
+
 # ---- orchestration ---------------------------------------------------------
-def run_install(claude_path, claude_cmd, codex_path, codex_args):
-    return [
+def run_install(claude_path, claude_cmd, codex_path, codex_args,
+                agy_plugin_dir=None, track_path=None):
+    """安裝 claude + codex 設定；agy_plugin_dir 與 track_path 須同時給定才安裝 agy plugin（只給一個則略過）。"""
+    results = [
         _apply_json(claude_path, lambda d: apply_claude_hooks(d, claude_cmd)),
         _apply_text(codex_path, lambda t: apply_codex_dispatch(t, codex_args), mode=0o600),
     ]
+    if agy_plugin_dir is not None and track_path is not None:
+        results.append(_apply_antigravity(agy_plugin_dir, track_path))
+    return results
 
 
-def run_uninstall(claude_path, claude_cmd, codex_path):
-    return [
+def run_uninstall(claude_path, claude_cmd, codex_path, agy_plugin_dir=None):
+    results = [
         _apply_json(claude_path, lambda d: remove_claude_hooks(d, claude_cmd)[0]),
         _apply_text(codex_path, remove_codex_dispatch, mode=0o600),
     ]
+    if agy_plugin_dir is not None:
+        results.append(_remove_antigravity(agy_plugin_dir))
+    return results
 
 
 # ---- 路徑解析 + main --------------------------------------------------------
 def _paths(env):
     claude = env.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
     codex = env.get("CODEX_HOME") or os.path.expanduser("~/.codex")
+    gemini = env.get("GEMINI_CONFIG_DIR") or os.path.expanduser("~/.gemini/config")
     return (os.path.join(claude, "settings.json"),
-            os.path.join(codex, "config.toml"))
+            os.path.join(codex, "config.toml"),
+            os.path.join(gemini, "plugins", AGY_PLUGIN_NAME))
 
 
 def _arg_value(argv, flag):
@@ -255,13 +309,14 @@ def main(argv=None, env=None):
     if action == "install" and not dispatch:
         print("!! --dispatch <abs notify.sh> 為 install 時必填", file=sys.stderr)
         return 2
-    claude_path, codex_path = _paths(env)
+    claude_path, codex_path, agy_plugin_dir = _paths(env)
     claude_cmd = f"{track} claude"
     codex_args = [dispatch, "codex"]
     if action == "install":
-        results = run_install(claude_path, claude_cmd, codex_path, codex_args)
+        results = run_install(claude_path, claude_cmd, codex_path, codex_args,
+                              agy_plugin_dir, track)
     else:
-        results = run_uninstall(claude_path, claude_cmd, codex_path)
+        results = run_uninstall(claude_path, claude_cmd, codex_path, agy_plugin_dir)
     for r in results:
         mark = {"ok": "✓", "skipped": "•", "error": "!!"}[r["status"]]
         print(f"   {mark} {r['target']} {r['detail']}".rstrip())

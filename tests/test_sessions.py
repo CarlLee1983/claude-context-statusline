@@ -512,3 +512,60 @@ class AntigravityHandlerTest(unittest.TestCase):
         self.assertEqual(len(recs), 1)
         self.assertEqual(recs[0]["session_id"], "c9")
         self.assertEqual(recs[0]["status"], "idle")
+
+
+class AntigravitySetupTest(unittest.TestCase):
+    def setUp(self):
+        self.root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
+        self.plugin_dir = os.path.join(self.root, "plugins", "ai-sessions")
+        self.track = "/abs/sessions/track.sh"
+
+    def test_plugin_files_content(self):
+        files = setup.antigravity_plugin_files(self.track)
+        self.assertIn("plugin.json", files)
+        self.assertIn("hooks.json", files)
+        self.assertIn('"name": "ai-sessions"', files["plugin.json"])
+        hooks = json.loads(files["hooks.json"])["hooks"]
+        self.assertEqual(hooks["PostToolUse"][0]["hooks"][0]["command"],
+                         "/abs/sessions/track.sh antigravity PostToolUse")
+        self.assertEqual(hooks["Stop"][0]["hooks"][0]["command"],
+                         "/abs/sessions/track.sh antigravity Stop")
+
+    def test_apply_creates_then_idempotent_then_remove(self):
+        r1 = setup._apply_antigravity(self.plugin_dir, self.track)
+        self.assertEqual(r1["status"], "ok")
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "plugin.json")))
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "hooks.json")))
+        r2 = setup._apply_antigravity(self.plugin_dir, self.track)
+        self.assertEqual(r2["status"], "skipped")
+        r3 = setup._remove_antigravity(self.plugin_dir)
+        self.assertEqual(r3["status"], "ok")
+        self.assertFalse(os.path.exists(self.plugin_dir))
+        r4 = setup._remove_antigravity(self.plugin_dir)
+        self.assertEqual(r4["status"], "skipped")
+
+    def test_run_install_includes_antigravity_when_dir_given(self):
+        claude = os.path.join(self.root, "settings.json")
+        codex = os.path.join(self.root, "config.toml")
+        results = setup.run_install(claude, "/t/track.sh claude", codex,
+                                    ["/t/notify.sh", "codex"],
+                                    agy_plugin_dir=self.plugin_dir,
+                                    track_path="/t/track.sh")
+        self.assertEqual(len(results), 3)
+        self.assertTrue(os.path.exists(os.path.join(self.plugin_dir, "hooks.json")))
+        results_u = setup.run_uninstall(claude, "/t/track.sh claude", codex,
+                                        agy_plugin_dir=self.plugin_dir)
+        self.assertEqual(len(results_u), 3)
+        self.assertFalse(os.path.exists(self.plugin_dir))
+
+    def test_run_install_without_agy_gives_two_results(self):
+        claude = os.path.join(self.root, "settings.json")
+        codex = os.path.join(self.root, "config.toml")
+        results = setup.run_install(claude, "/t/track.sh claude", codex,
+                                    ["/t/notify.sh", "codex"])
+        self.assertEqual(len(results), 2)
+
+    def test_paths_resolves_gemini_dir(self):
+        claude, codex, agy = setup._paths({"GEMINI_CONFIG_DIR": "/g"})
+        self.assertEqual(agy, "/g/plugins/ai-sessions")
