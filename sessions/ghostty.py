@@ -55,3 +55,72 @@ def pick_terminal(record, terminals):
                 if not _title_is_pathlike(t.get("title", ""), target)]
     chosen = cli_like[0] if cli_like else matches[0]
     return chosen.get("id")
+
+
+# ---- osascript 薄邊界（不單測；永不崩潰）-----------------------------------
+
+_LIST_SCRIPT = (
+    'tell application "Ghostty"\n'
+    '  set out to ""\n'
+    '  repeat with t in terminals\n'
+    '    try\n'
+    '      set out to out & (id of t) & tab & (working directory of t) '
+    '& tab & (name of t) & linefeed\n'
+    '    end try\n'
+    '  end repeat\n'
+    '  return out\n'
+    'end tell'
+)
+
+_ID_RE = re.compile(r"^[A-Za-z0-9-]+$")
+
+
+def _run_osascript(script, timeout=3):
+    """跑 osascript；失敗（無 osascript / 非 0 / 例外）回 None，成功回 stdout 字串。"""
+    osa = shutil.which("osascript")
+    if not osa:
+        return None
+    try:
+        proc = subprocess.run([osa, "-e", script],
+                              capture_output=True, timeout=timeout)
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    try:
+        return proc.stdout.decode("utf-8", "replace")
+    except Exception:
+        return None
+
+
+def list_terminals():
+    """列舉 Ghostty terminals → [{"id","cwd","title"}]。失敗回 []。"""
+    raw = _run_osascript(_LIST_SCRIPT)
+    if not raw:
+        return []
+    out = []
+    for line in raw.splitlines():
+        if not line:
+            continue
+        parts = line.split("\t", 2)
+        if len(parts) < 2:
+            continue
+        out.append({
+            "id": parts[0],
+            "cwd": parts[1],
+            "title": parts[2] if len(parts) > 2 else "",
+        })
+    return out
+
+
+def focus_terminal(term_id):
+    """focus 指定 terminal 並把 Ghostty 帶到最前。成功回 True，否則 False。"""
+    if not isinstance(term_id, str) or not _ID_RE.match(term_id):
+        return False
+    script = (
+        'tell application "Ghostty"\n'
+        '  focus (first terminal whose id is "%s")\n'
+        '  activate\n'
+        'end tell' % term_id
+    )
+    return _run_osascript(script) is not None
