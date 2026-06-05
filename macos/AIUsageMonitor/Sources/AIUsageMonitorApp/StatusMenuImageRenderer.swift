@@ -110,29 +110,21 @@ enum StatusMenuImageRenderer {
         image.lockFocus()
         NSGraphicsContext.current?.imageInterpolation = .high
 
-        let rect = NSRect(origin: .zero, size: size).insetBy(dx: 1, dy: 1)
-        let background = NSBezierPath(ovalIn: rect)
-        NSColor.white.withAlphaComponent(0.16).setFill()
-        background.fill()
-        NSColor.white.withAlphaComponent(0.28).setStroke()
-        background.lineWidth = 1
-        background.stroke()
+        let rect = NSRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
+        let cx = rect.midX
+        let cy = rect.midY
+        let center = NSPoint(x: cx, y: cy)
 
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: NSFont.systemFont(ofSize: 9, weight: .bold),
-            .foregroundColor: NSColor.white
-        ]
-        let title = NSString(string: "AI")
-        let titleSize = title.size(withAttributes: attributes)
-        title.draw(
-            in: NSRect(
-                x: (size.width - titleSize.width) / 2,
-                y: (size.height - titleSize.height) / 2 - 0.5,
-                width: titleSize.width,
-                height: titleSize.height
-            ),
-            withAttributes: attributes
-        )
+        let path = NSBezierPath()
+        path.move(to: NSPoint(x: cx, y: rect.maxY))
+        path.curve(to: NSPoint(x: rect.maxX, y: cy), controlPoint1: center, controlPoint2: center)
+        path.curve(to: NSPoint(x: cx, y: rect.minY), controlPoint1: center, controlPoint2: center)
+        path.curve(to: NSPoint(x: rect.minX, y: cy), controlPoint1: center, controlPoint2: center)
+        path.curve(to: NSPoint(x: cx, y: rect.maxY), controlPoint1: center, controlPoint2: center)
+        path.close()
+
+        NSColor.black.setFill()
+        path.fill()
 
         image.unlockFocus()
         return image

@@ -21,7 +21,7 @@ We will replace the text-based circular "AI" icon with a **Modern AI Sparkle (fo
 - **Fallback:** Keep `"AI"` as the accessibility title and fallback text.
 
 ### Implementation Details
-We will update `drawIconOnly()` in [StatusMenuImageRenderer.swift](file:///Users/carl/Dev/claude-context-statusline/macos/AIUsageMonitor/Sources/AIUsageMonitorApp/StatusMenuImageRenderer.swift) to procedurally draw the sparkle shape using `NSBezierPath` with cubic Bezier curves curving inwards towards the center of the bounding box.
+We will update `drawIconOnly()` in [StatusMenuImageRenderer.swift](file:///Users/carl/Dev/claude-context-statusline/macos/AIUsageMonitor/Sources/AIUsageMonitorApp/StatusMenuImageRenderer.swift) to procedurally draw the sparkle shape using `NSBezierPath` with cubic Bezier curves curving inwards. To prevent blurriness and increase visibility, we use a 1.0pt inset (making the star 16x16) and a curve control point offset of `rect.width * 0.10` (Option B: Medium Thickness).
 
 ```swift
 private static func drawIconOnly() -> NSImage {
@@ -32,17 +32,30 @@ private static func drawIconOnly() -> NSImage {
     image.lockFocus()
     NSGraphicsContext.current?.imageInterpolation = .high
 
-    let rect = NSRect(origin: .zero, size: size).insetBy(dx: 1.5, dy: 1.5)
+    let rect = NSRect(origin: .zero, size: size).insetBy(dx: 1.0, dy: 1.0)
     let cx = rect.midX
     let cy = rect.midY
-    let center = NSPoint(x: cx, y: cy)
+    let offset = rect.width * 0.10
 
     let path = NSBezierPath()
     path.move(to: NSPoint(x: cx, y: rect.maxY))
-    path.curve(to: NSPoint(x: rect.maxX, y: cy), controlPoint1: center, controlPoint2: center)
-    path.curve(to: NSPoint(x: cx, y: rect.minY), controlPoint1: center, controlPoint2: center)
-    path.curve(to: NSPoint(x: rect.minX, y: cy), controlPoint1: center, controlPoint2: center)
-    path.curve(to: NSPoint(x: cx, y: rect.maxY), controlPoint1: center, controlPoint2: center)
+    
+    // Top to Right
+    let cpTR = NSPoint(x: cx + offset, y: cy + offset)
+    path.curve(to: NSPoint(x: rect.maxX, y: cy), controlPoint1: cpTR, controlPoint2: cpTR)
+    
+    // Right to Bottom
+    let cpRB = NSPoint(x: cx + offset, y: cy - offset)
+    path.curve(to: NSPoint(x: cx, y: rect.minY), controlPoint1: cpRB, controlPoint2: cpRB)
+    
+    // Bottom to Left
+    let cpBL = NSPoint(x: cx - offset, y: cy - offset)
+    path.curve(to: NSPoint(x: rect.minX, y: cy), controlPoint1: cpBL, controlPoint2: cpBL)
+    
+    // Left to Top
+    let cpLT = NSPoint(x: cx - offset, y: cy + offset)
+    path.curve(to: NSPoint(x: cx, y: rect.maxY), controlPoint1: cpLT, controlPoint2: cpLT)
+    
     path.close()
 
     NSColor.black.setFill()
