@@ -9,6 +9,12 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-06-05
+
+### Added 新增
+- **選單列 AI 星芒圖示**: 將選單列純圖示模式（無監控數值顯示時）的圓圈 "AI" 文字，替換為符合 macOS 風格的四角星芒向量圖示。支援 `isTemplate = true` 原生淺色、深色模式與選取高亮適應，並優化曲線控制點與內邊距，提供更好的辨識度與量感。
+  **Menu bar AI Sparkle icon**: replace the legacy circular "AI" text placeholder in icon-only mode with a native macOS-style four-pointed sparkle vector icon. Supports `isTemplate = true` for automatic light/dark theme tinting and highlighting, and optimizes curve offsets and padding for improved legibility and visual weight.
+
 ## [0.4.0] - 2026-06-04
 
 ### Removed 移除
