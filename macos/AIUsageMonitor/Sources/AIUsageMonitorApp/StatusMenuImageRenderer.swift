@@ -105,7 +105,7 @@ enum StatusMenuImageRenderer {
     private static func drawIconOnly() -> NSImage {
         let size = NSSize(width: 18, height: 18)
         let image = NSImage(size: size)
-        image.isTemplate = false
+        image.isTemplate = true
 
         image.lockFocus()
         NSGraphicsContext.current?.imageInterpolation = .high
