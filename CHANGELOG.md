@@ -9,6 +9,14 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-06-11
+
+### Fixed 修正
+- **ctx-statusline Fable 5 context 上限**：將 Fable 5 視為 1,000,000 token context window，
+  避免狀態列誤顯示為 200k。
+  **ctx-statusline Fable 5 context limit**: treat Fable 5 as a 1,000,000-token context window
+  so the statusline no longer reports it as 200k.
+
 ## [0.4.1] - 2026-06-05
 
 ### Added 新增
