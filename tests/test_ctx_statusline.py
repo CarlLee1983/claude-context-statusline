@@ -51,6 +51,10 @@ class ContextLimitTest(unittest.TestCase):
     def test_million_window(self):
         self.assertEqual(ctx.context_limit("claude-opus-4-8[1m]"), 1_000_000)
 
+    def test_fable_5_uses_million_window(self):
+        self.assertEqual(ctx.context_limit("fable-5"), 1_000_000)
+        self.assertEqual(ctx.context_limit("Claude Fable 5"), 1_000_000)
+
     def test_case_insensitive(self):
         self.assertEqual(ctx.context_limit("MODEL-1M"), 1_000_000)
 

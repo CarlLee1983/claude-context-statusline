@@ -60,7 +60,7 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 - `used_tokens()` 從 transcript（JSONL）**尾端往前**掃，找第一筆「非 sidechain 且含 `message.usage`」的記錄。已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`。
 - 效率：大型 transcript 只讀尾端 `TAIL_BYTES`（預設 2MB）；尾端找不到且檔案曾被截斷時，才整檔回掃（涵蓋「近期全是 sidechain」的邊界）。
 - 過濾 `isSidechain` 是刻意設計：只反映主 session 用量，與 Claude Code 內建 `/context` 的數字對齊。subagent 訊息不計入。
-- `context_limit()` 以 `model.id` 是否含 `1m` 判斷上限（1,000,000 vs 200,000）。
+- `context_limit()` 以 `model.id` 是否含 `1m` 或 Fable 5 判斷上限（1,000,000 vs 200,000）。
 
 **永不崩潰原則（關鍵不變量）**：狀態列指令絕不能拋例外或噴錯，否則會污染使用者畫面。因此每層都有防線——檔案讀取、JSON parse、`main()` 外層 try/except 全部 fallback 到「0% / 空進度條」。修改時務必維持這個性質：新增邏輯要包在防護內，不要讓任何路徑能逸出未捕捉的例外。
 

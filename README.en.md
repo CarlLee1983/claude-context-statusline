@@ -94,7 +94,7 @@ Each time Claude Code refreshes the statusline it pipes a JSON blob to the statu
 
 1. Reads `transcript_path` (JSONL) and scans **from the end backwards** for the first non-sidechain record carrying `message.usage`
 2. Used context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
-3. Percentage = used ÷ model limit
+3. Percentage = used ÷ model limit (`1m` / Fable 5 use 1,000,000; others default to 200,000)
 
 For efficiency, large transcripts only read the trailing ~2MB; it falls back to a full scan only when nothing is found in the tail (e.g. recent messages are all sidechain).
 

@@ -90,7 +90,7 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 
 1. 讀 `transcript_path`（JSONL），**從尾端往前**找第一筆非 sidechain 且含 `message.usage` 的記錄
 2. 已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
-3. 百分比 = 已用 ÷ 模型上限
+3. 百分比 = 已用 ÷ 模型上限（`1m` / Fable 5 為 1,000,000，其餘預設 200,000）
 
 為效率考量，大型 transcript 只讀尾端 ~2MB；若尾端找不到（例如近期訊息全為 sidechain）才退回整檔掃描。
 

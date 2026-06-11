@@ -40,12 +40,15 @@ MILLION_LIMIT = 1_000_000
 
 
 def context_limit(model_id: Optional[str]) -> int:
-    """依 model id 判斷 context 上限；含 1m 視為百萬窗。
+    """依 model id 判斷 context 上限；含 1m 或 Fable 5 視為百萬窗。
 
-    Pick the context limit from the model id; ids containing ``1m`` map to the
-    1,000,000-token window, otherwise the default 200,000.
+    Pick the context limit from the model id; ids containing ``1m`` or Fable 5
+    map to the 1,000,000-token window, otherwise the default 200,000.
     """
-    return MILLION_LIMIT if "1m" in (model_id or "").lower() else DEFAULT_LIMIT
+    normalized = (model_id or "").lower().replace("_", "-")
+    if "1m" in normalized or "fable-5" in normalized or "fable 5" in normalized:
+        return MILLION_LIMIT
+    return DEFAULT_LIMIT
 
 
 def _usage_tokens(obj: dict) -> int:
