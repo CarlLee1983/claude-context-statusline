@@ -3,11 +3,7 @@ import AIUsageMonitorCore
 
 struct ProviderCardView: View {
     let snapshot: ProviderSnapshot
-    
-    private var isAntigravity: Bool {
-        snapshot.name.lowercased() == "antigravity" || snapshot.shortName.lowercased() == "antigravity"
-    }
-    
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             // Header
@@ -46,29 +42,6 @@ struct ProviderCardView: View {
                 Text(snapshot.isAvailable ? "No quota data available" : "Service offline")
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
-            } else if isAntigravity {
-                // Antigravity quota is a shared pool across model variants, so the
-                // dropdown collapses every Gemini variant into a single bar instead
-                // of listing each (model, reasoning-effort) row. When the whole pool
-                // is full we show a friendlier "all ready" line.
-                let allReady = snapshot.windows.allSatisfy {
-                    RemainingQuotaPresenter.remainingPercent(for: $0) == 100
-                }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if allReady {
-                        HStack(spacing: 6) {
-                            BrandIconView(name: "gemini", size: 12)
-                            Text("All models ready (100% quota)")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.green)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .center)
-                        .padding(.vertical, 4)
-                    } else if let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: snapshot.windows) {
-                        UsageProgressBarView(window: merged)
-                    }
-                }
             } else {
                 VStack(spacing: 12) {
                     ForEach(snapshot.windows) { window in
@@ -151,14 +124,20 @@ public struct StatusMenuView: View {
             ]
         ),
         ProviderSnapshot(
-            name: "Antigravity",
-            shortName: "AG",
+            name: "Antigravity · Gemini",
+            shortName: "AGg",
             plan: "agy /usage",
             windows: [
-                UsageWindow(label: "Gemini 1.5 Pro", percent: 60, kind: .used, resetAt: Date().addingTimeInterval(120)),
-                UsageWindow(label: "Gemini 1.5 Flash", percent: 100, kind: .available),
-                UsageWindow(label: "Claude 3.5 Sonnet", percent: 100, kind: .available),
-                UsageWindow(label: "Claude 3 Opus", percent: 95, kind: .used, resetAt: Date().addingTimeInterval(300))
+                UsageWindow(label: "Weekly Limit", percent: 77, kind: .available, resetAt: Date().addingTimeInterval(59 * 3600)),
+                UsageWindow(label: "Five Hour Limit", percent: 100, kind: .available)
+            ]
+        ),
+        ProviderSnapshot(
+            name: "Antigravity · Claude & GPT",
+            shortName: "AGc",
+            plan: "agy /usage",
+            windows: [
+                UsageWindow(label: "Weekly Limit", percent: 0, kind: .available, resetAt: Date().addingTimeInterval(40 * 3600))
             ]
         )
     ])
