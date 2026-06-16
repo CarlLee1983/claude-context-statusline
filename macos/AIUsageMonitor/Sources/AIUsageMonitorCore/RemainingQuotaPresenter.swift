@@ -88,6 +88,45 @@ public enum RemainingQuotaPresenter {
         )
     }
 
+    /// Collapses the (possibly multiple) AG-prefixed snapshots into a single
+    /// "Antigravity" entry for the compact menu bar, keeping it to one chip. The
+    /// representative window is the worst (lowest remaining) across all AG groups,
+    /// so the tightest pool surfaces. Non-AG snapshots keep their position; the AG
+    /// entry takes the slot of the first AG snapshot seen.
+    public static func collapsedForMenuBar(_ snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
+        var result: [ProviderSnapshot] = []
+        var agWindows: [UsageWindow] = []
+        var agPlan: String?
+        var agAvailable = false
+        var agSlot: Int?
+
+        for snapshot in snapshots {
+            if snapshot.shortName.hasPrefix("AG") {
+                if agSlot == nil {
+                    agSlot = result.count
+                    agPlan = snapshot.plan
+                }
+                agAvailable = agAvailable || snapshot.isAvailable
+                agWindows.append(contentsOf: snapshot.windows)
+            } else {
+                result.append(snapshot)
+            }
+        }
+
+        guard let slot = agSlot else { return result }
+
+        let worst = agWindows.min(by: { remainingPercent(for: $0) < remainingPercent(for: $1) })
+        let collapsed = ProviderSnapshot(
+            name: "Antigravity",
+            shortName: "AG",
+            plan: agPlan,
+            windows: worst.map { [$0] } ?? [],
+            isAvailable: agAvailable
+        )
+        result.insert(collapsed, at: min(slot, result.count))
+        return result
+    }
+
     public static func fallbackTitle(for snapshots: [ProviderSnapshot]) -> String {
         guard !snapshots.isEmpty else { return "AI —" }
 
