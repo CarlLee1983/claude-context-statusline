@@ -9,6 +9,15 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Changed 變更
+- **Antigravity 分群組額度顯示**：解析改版後分群組的 `agy /usage` 面板，下拉選單拆成
+  Gemini 與 Claude/GPT 兩張獨立卡片（各自 Weekly / Five Hour），menu bar 合併為單一
+  Antigravity 圖示並取兩區剩餘量最低者，且兩張卡片共用單一 Antigravity 開關。
+  **Grouped Antigravity quota display**: parse the redesigned grouped `agy /usage` panel; the
+  dropdown splits into two independent cards (Gemini and Claude/GPT, each with its own Weekly /
+  Five Hour quota), the menu bar collapses them into a single Antigravity chip showing the lowest
+  remaining of the two groups, and both cards share one Antigravity toggle.
+
 ## [0.4.2] - 2026-06-11
 
 ### Fixed 修正

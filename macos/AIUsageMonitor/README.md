@@ -52,6 +52,9 @@ APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
 - **Codex 即時用量**：`codex app-server` JSON-RPC rate limits，取 5h / 7d 視窗。
 - **Antigravity 即時用量**：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota；
   取不到時退回讀本機 `~/.config/opencode/antigravity-accounts.json` 的 cooldown / ready 狀態。
+  改版後的 `agy /usage` 面板已分成兩個模型群組（Gemini 與 Claude/GPT），下拉選單因此拆成
+  兩張獨立卡片，各自顯示自己的 Weekly / Five Hour 額度條；選單列仍合併為單一 Antigravity
+  圖示，數字取兩區剩餘量最低者；兩張卡片共用同一個 Antigravity 開關。
 - **原生 AppKit 選單列 UI**：每 5 分鐘自動刷新，另提供手動「Refresh」。
 - **選單列與查詢設定**：選單內的 **Show in Menu Bar** 可決定哪些 provider 保留在選單列摘要；
   全部取消時只保留單一 AI icon，點開仍顯示細節。**Query Usage** 可決定哪些 provider 需要實際查用量；
