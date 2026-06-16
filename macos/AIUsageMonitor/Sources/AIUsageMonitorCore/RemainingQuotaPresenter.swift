@@ -79,7 +79,7 @@ public enum RemainingQuotaPresenter {
         var agSlot: Int?
 
         for snapshot in snapshots {
-            if snapshot.shortName.hasPrefix("AG") {
+            if UsageProviderID.isAntigravity(shortName: snapshot.shortName) {
                 if agSlot == nil {
                     agSlot = result.count
                     agPlan = snapshot.plan
