@@ -1,9 +1,24 @@
 import Foundation
 
 public enum AntigravityUsageParser {
-    public static func parse(_ rawText: String, now: Date = .now) -> [UsageWindow] {
+    /// One model group in the `agy /usage` panel (e.g. "Gemini",
+    /// "Claude & GPT") with its named limit windows (Weekly / Five Hour).
+    public struct ParsedGroup: Equatable, Sendable {
+        public let title: String
+        public let windows: [UsageWindow]
+
+        public init(title: String, windows: [UsageWindow]) {
+            self.title = title
+            self.windows = windows
+        }
+    }
+
+    public static func parse(_ rawText: String, now: Date = .now) -> [ParsedGroup] {
         var text = rawText.replacingOccurrences(of: "\r", with: "\n")
-        if let range = text.range(of: "Model Quota", options: .backwards) {
+        // Anchor at the panel heading; tolerate the legacy "Model Quota" wording.
+        if let range = text.range(of: "Models & Quota", options: .backwards) {
+            text = String(text[range.lowerBound...])
+        } else if let range = text.range(of: "Model Quota", options: .backwards) {
             text = String(text[range.lowerBound...])
         }
 
@@ -12,21 +27,64 @@ public enum AntigravityUsageParser {
             .map { stripANSI($0).trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
-        var windows: [UsageWindow] = []
+        var groups: [ParsedGroup] = []
+        var currentTitle: String?
+        var currentWindows: [UsageWindow] = []
+
+        func flush() {
+            if let title = currentTitle, !currentWindows.isEmpty {
+                groups.append(ParsedGroup(title: title, windows: currentWindows))
+            }
+            currentWindows = []
+        }
+
         for (index, line) in lines.enumerated() {
-            if shouldSkip(line) || line.contains("█") || line.contains("░") || line.contains("%") {
+            if let groupName = groupTitle(from: line) {
+                flush()
+                currentTitle = groupName
                 continue
             }
+            // Limit windows only exist inside a group.
+            guard currentTitle != nil else { continue }
+            if shouldSkip(line) || isBarOrPercentLine(line) { continue }
 
-            let lookahead = Array(lines.dropFirst(index + 1).prefix(3))
+            // The bar line ("[…] 77.05%") sits immediately below the limit name;
+            // the "… Refreshes in" countdown is the line after it.
+            let lookahead = Array(lines.dropFirst(index + 1).prefix(2))
             guard let percent = firstPercent(in: lookahead) else { continue }
-            // The "… · Refreshes in 2h 46m" line gives a countdown for partially
-            // used windows; turn it into an absolute reset instant. Full windows
-            // show "Quota available" instead, so resetAt stays nil.
             let resetAt = firstRefreshInterval(in: lookahead).map { now.addingTimeInterval($0) }
-            windows.append(UsageWindow(label: line, percent: percent, kind: .available, resetAt: resetAt))
+            currentWindows.append(
+                UsageWindow(label: line, percent: percent, kind: .available, resetAt: resetAt)
+            )
         }
-        return windows
+        flush()
+        return groups
+    }
+
+    /// A group header is an all-caps line (with letters) ending in "MODELS".
+    /// Maps the two known headers to friendly names; title-cases the rest.
+    private static func groupTitle(from line: String) -> String? {
+        guard
+            line == line.uppercased(),
+            line.rangeOfCharacter(from: .letters) != nil,
+            line.hasSuffix("MODELS")
+        else { return nil }
+
+        switch line {
+        case "GEMINI MODELS":
+            return "Gemini"
+        case "CLAUDE AND GPT MODELS":
+            return "Claude & GPT"
+        default:
+            let stripped = line.replacingOccurrences(of: "MODELS", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            return (stripped.isEmpty ? line : stripped).capitalized
+        }
+    }
+
+    private static func isBarOrPercentLine(_ line: String) -> Bool {
+        line.contains("█") || line.contains("░") || line.contains("%")
+            || line.contains("[") || line.contains("]")
     }
 
     /// Parses an Antigravity "Refreshes in …" countdown into seconds. Accepts the
@@ -60,12 +118,16 @@ public enum AntigravityUsageParser {
     }
 
     private static func shouldSkip(_ line: String) -> Bool {
-        line == "Model Quota" ||
-            line == "Quota available" ||
-            line.hasSuffix("Model Quota") ||
-            line.localizedCaseInsensitiveContains("shortcuts") ||
-            line.localizedCaseInsensitiveContains("scroll") ||
-            line.localizedCaseInsensitiveContains("esc")
+        line == "Model Quota"
+            || line == "Models & Quota"
+            || line == "Quota available"
+            || line.hasSuffix("Model Quota")
+            || line.hasSuffix("Models & Quota")
+            || line.localizedCaseInsensitiveContains("models within this group")
+            || line.localizedCaseInsensitiveContains("account:")
+            || line.localizedCaseInsensitiveContains("shortcuts")
+            || line.localizedCaseInsensitiveContains("scroll")
+            || line.localizedCaseInsensitiveContains("esc")
     }
 
     private static func firstPercent<S: Sequence>(in lines: S) -> Double? where S.Element == String {

@@ -56,7 +56,7 @@ struct UsageMonitorSettingsTests {
     }
 }
 
-private actor CountingProvider: ProviderSnapshotProviding {
+private actor CountingProvider: ProviderSnapshotProviding, UsageSnapshotProviding {
     private let storedSnapshot: ProviderSnapshot
     private(set) var callCount = 0
 
@@ -67,5 +67,10 @@ private actor CountingProvider: ProviderSnapshotProviding {
     func snapshot() async -> ProviderSnapshot {
         callCount += 1
         return storedSnapshot
+    }
+
+    func snapshots() async -> [ProviderSnapshot] {
+        callCount += 1
+        return [storedSnapshot]
     }
 }

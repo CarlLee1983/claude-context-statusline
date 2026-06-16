@@ -13,14 +13,18 @@ struct AntigravityUsageProviderTests {
         ])
     }
 
-    @Test("agy /usage text wins and is shown as available quota")
-    func textPathWins() async {
+    @Test("live panel yields one snapshot per model group")
+    func textPathSplitsGroups() async {
         let usageText = """
-        └ Model Quota
-
-          Gemini 3.5 Flash (Medium)
-          ███████████ 92%
-          Quota available
+        Models & Quota
+        GEMINI MODELS
+          Weekly Limit
+            [██████] 92.00%
+            Quota available
+        CLAUDE AND GPT MODELS
+          Weekly Limit
+            [███] 30.00%
+            Refreshes in 5h
         """
         let provider = AntigravityUsageProvider(
             captureText: { usageText },
@@ -28,17 +32,17 @@ struct AntigravityUsageProviderTests {
             now: { self.now }
         )
 
-        let snapshot = await provider.snapshot()
+        let snapshots = await provider.snapshots()
 
-        #expect(snapshot.name == "Antigravity")
-        #expect(snapshot.shortName == "AG")
-        #expect(snapshot.isAvailable)
-        #expect(snapshot.plan == "agy /usage")
-        #expect(snapshot.windows.map(\.label) == ["Gemini 3.5 Flash (Medium)"])
-        #expect(snapshot.windows[0].kind == .available)
+        #expect(snapshots.map(\.name) == ["Antigravity · Gemini", "Antigravity · Claude & GPT"])
+        #expect(snapshots.map(\.shortName) == ["AGg", "AGc"])
+        #expect(snapshots.allSatisfy { $0.plan == "agy /usage" && $0.isAvailable })
+        #expect(snapshots[0].windows.map(\.label) == ["Weekly Limit"])
+        #expect(snapshots[0].windows[0].percent == 92)
+        #expect(snapshots[1].windows[0].percent == 30)
     }
 
-    @Test("falls back to accounts cooldown when text capture is empty")
+    @Test("falls back to a single accounts-cooldown snapshot when capture is empty")
     func accountsFallback() async {
         let provider = AntigravityUsageProvider(
             captureText: { nil },
@@ -46,12 +50,14 @@ struct AntigravityUsageProviderTests {
             now: { self.now }
         )
 
-        let snapshot = await provider.snapshot()
+        let snapshots = await provider.snapshots()
 
-        #expect(snapshot.isAvailable)
-        #expect(snapshot.plan == "1 acct")
-        #expect(snapshot.windows.map(\.label) == ["Claude"])
-        #expect(snapshot.windows[0].kind == .used)
+        #expect(snapshots.count == 1)
+        #expect(snapshots[0].name == "Antigravity")
+        #expect(snapshots[0].shortName == "AG")
+        #expect(snapshots[0].plan == "1 acct")
+        #expect(snapshots[0].windows.map(\.label) == ["Claude"])
+        #expect(snapshots[0].windows[0].kind == .used)
     }
 
     @Test("accounts present but no cooldown is available with no windows (ready)")
@@ -62,13 +68,14 @@ struct AntigravityUsageProviderTests {
             now: { self.now }
         )
 
-        let snapshot = await provider.snapshot()
+        let snapshots = await provider.snapshots()
 
-        #expect(snapshot.isAvailable)
-        #expect(snapshot.windows.isEmpty)
+        #expect(snapshots.count == 1)
+        #expect(snapshots[0].isAvailable)
+        #expect(snapshots[0].windows.isEmpty)
     }
 
-    @Test("no text and no accounts is unavailable")
+    @Test("no text and no accounts is a single unavailable snapshot")
     func unavailable() async {
         let provider = AntigravityUsageProvider(
             captureText: { nil },
@@ -76,22 +83,27 @@ struct AntigravityUsageProviderTests {
             now: { self.now }
         )
 
-        let snapshot = await provider.snapshot()
+        let snapshots = await provider.snapshots()
 
-        #expect(!snapshot.isAvailable)
-        #expect(snapshot.windows.isEmpty)
+        #expect(snapshots.count == 1)
+        #expect(!snapshots[0].isAvailable)
+        #expect(snapshots[0].windows.isEmpty)
     }
 
-    @Test("blank text capture is treated as no data")
-    func blankText() async {
-        let provider = AntigravityUsageProvider(
-            captureText: { "   \n  " },
-            loadAccounts: { nil },
-            now: { self.now }
-        )
+    @Test("colliding group initials fall back to a unique index-based shortName")
+    func collidingShortNames() {
+        let groups = [
+            AntigravityUsageParser.ParsedGroup(
+                title: "Gemini", windows: [UsageWindow(label: "Weekly Limit", percent: 50, kind: .available)]
+            ),
+            AntigravityUsageParser.ParsedGroup(
+                title: "Gpt", windows: [UsageWindow(label: "Weekly Limit", percent: 10, kind: .available)]
+            )
+        ]
 
-        let snapshot = await provider.snapshot()
+        let snapshots = AntigravityUsageProvider.snapshots(from: groups)
 
-        #expect(!snapshot.isAvailable)
+        #expect(snapshots.map(\.shortName) == ["AGg", "AG1"])
+        #expect(Set(snapshots.map(\.shortName)).count == 2)
     }
 }
