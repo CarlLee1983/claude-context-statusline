@@ -54,6 +54,34 @@ struct UsageMonitorSettingsTests {
         #expect(await codex.callCount == 1)
         #expect(await antigravity.callCount == 0)
     }
+
+    @Test("any AG-prefixed shortName resolves to the antigravity provider")
+    func agPrefixResolvesToAntigravity() {
+        #expect(UsageProviderID(shortName: "AG") == .antigravity)
+        #expect(UsageProviderID(shortName: "AGg") == .antigravity)
+        #expect(UsageProviderID(shortName: "AGc") == .antigravity)
+        #expect(UsageProviderID(shortName: "AG1") == .antigravity)
+        #expect(UsageProviderID(shortName: "CC") == .claudeCode)
+        #expect(UsageProviderID(shortName: "CX") == .codex)
+        #expect(UsageProviderID(shortName: "ZZ") == nil)
+    }
+
+    @Test("a single antigravity toggle controls both grouped cards")
+    func singleToggleControlsBothAntigravityCards() {
+        let settings = UsageMonitorSettings(
+            menuBarProviderIDs: [.claudeCode, .antigravity],
+            queriedProviderIDs: Set(UsageProviderID.allCases)
+        )
+        let snapshots = [
+            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", windows: []),
+            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", windows: []),
+            ProviderSnapshot(name: "Codex", shortName: "CX", windows: [])
+        ]
+
+        let shown = settings.menuBarSnapshots(from: snapshots)
+
+        #expect(shown.map(\.shortName) == ["AGg", "AGc"])
+    }
 }
 
 private actor CountingProvider: ProviderSnapshotProviding, UsageSnapshotProviding {

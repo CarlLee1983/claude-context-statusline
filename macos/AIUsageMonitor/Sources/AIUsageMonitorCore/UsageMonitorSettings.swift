@@ -55,6 +55,13 @@ public struct UsageMonitorSettings: Equatable, Sendable {
 
 public extension UsageProviderID {
     init?(shortName: String) {
+        // Antigravity surfaces as multiple grouped cards ("AGg", "AGc", …); any
+        // "AG"-prefixed shortName maps back to the single antigravity provider so
+        // one toggle controls them all.
+        if shortName.hasPrefix("AG") {
+            self = .antigravity
+            return
+        }
         guard let provider = Self.allCases.first(where: { $0.shortName == shortName }) else {
             return nil
         }
