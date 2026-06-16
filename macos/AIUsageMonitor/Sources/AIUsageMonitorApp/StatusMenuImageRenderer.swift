@@ -11,8 +11,10 @@ enum StatusMenuImageRenderer {
     }
 
     static func renderStatus(for snapshots: [ProviderSnapshot]) -> RenderedStatus {
-        let fallbackTitle = RemainingQuotaPresenter.fallbackTitle(for: snapshots)
-        let entries = snapshots.compactMap { snapshot -> Entry? in
+        // Grouped Antigravity cards collapse to one chip in the compact menu bar.
+        let collapsed = RemainingQuotaPresenter.collapsedForMenuBar(snapshots)
+        let fallbackTitle = RemainingQuotaPresenter.fallbackTitle(for: collapsed)
+        let entries = collapsed.compactMap { snapshot -> Entry? in
             guard let remaining = RemainingQuotaPresenter.primaryRemainingPercent(for: snapshot) else { return nil }
             return Entry(providerName: snapshot.name, remaining: remaining)
         }

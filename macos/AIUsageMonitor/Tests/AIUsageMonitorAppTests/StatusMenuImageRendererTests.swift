@@ -1,6 +1,7 @@
 import Testing
 import AppKit
 @testable import AIUsageMonitorApp
+import AIUsageMonitorCore
 
 @Suite("Status menu image renderer")
 @MainActor
@@ -14,5 +15,20 @@ struct StatusMenuImageRendererTests {
         #expect(image.isTemplate == true)
         #expect(rendered.fallbackTitle == "AI")
         #expect(rendered.accessibilityTitle == "AI Usage Monitor")
+    }
+
+    @Test("two grouped Antigravity snapshots render as one combined fallback entry")
+    func combinesAntigravityInStatus() {
+        let snapshots = [
+            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
+                             windows: [UsageWindow(label: "Weekly Limit", percent: 77, kind: .available)]),
+            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
+                             windows: [UsageWindow(label: "Weekly Limit", percent: 0, kind: .available)])
+        ]
+
+        let rendered = StatusMenuImageRenderer.renderStatus(for: snapshots)
+
+        #expect(rendered.fallbackTitle == "Antigravity 0")
+        #expect(rendered.image != nil)
     }
 }

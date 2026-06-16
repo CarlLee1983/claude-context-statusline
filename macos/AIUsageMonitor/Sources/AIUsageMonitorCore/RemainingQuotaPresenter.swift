@@ -66,26 +66,43 @@ public enum RemainingQuotaPresenter {
         return remainingPercent(for: firstWindow)
     }
 
-    /// Collapses Antigravity's per-model windows into a single representative
-    /// window. Antigravity quota is currently a shared pool across every model
-    /// variant (e.g. the Flash/Pro reasoning-effort tiers move together), so the
-    /// dropdown shows one bar instead of one row per variant. The binding
-    /// constraint — the lowest remaining quota — represents the group and carries
-    /// its reset instant, so the soonest cooldown is what surfaces.
-    public static func mergedAntigravityWindow(
-        from windows: [UsageWindow],
-        label: String = "Gemini"
-    ) -> UsageWindow? {
-        guard let binding = windows.min(by: {
-            remainingPercent(for: $0) < remainingPercent(for: $1)
-        }) else { return nil }
+    /// Collapses the (possibly multiple) AG-prefixed snapshots into a single
+    /// "Antigravity" entry for the compact menu bar, keeping it to one chip. The
+    /// representative window is the worst (lowest remaining) across all AG groups,
+    /// so the tightest pool surfaces. Non-AG snapshots keep their position; the AG
+    /// entry takes the slot of the first AG snapshot seen.
+    public static func collapsedForMenuBar(_ snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
+        var result: [ProviderSnapshot] = []
+        var agWindows: [UsageWindow] = []
+        var agPlan: String?
+        var agAvailable = false
+        var agSlot: Int?
 
-        return UsageWindow(
-            label: label,
-            percent: Double(remainingPercent(for: binding)),
-            kind: .available,
-            resetAt: binding.resetAt
+        for snapshot in snapshots {
+            if UsageProviderID.isAntigravity(shortName: snapshot.shortName) {
+                if agSlot == nil {
+                    agSlot = result.count
+                    agPlan = snapshot.plan
+                }
+                agAvailable = agAvailable || snapshot.isAvailable
+                agWindows.append(contentsOf: snapshot.windows)
+            } else {
+                result.append(snapshot)
+            }
+        }
+
+        guard let slot = agSlot else { return result }
+
+        let worst = agWindows.min(by: { remainingPercent(for: $0) < remainingPercent(for: $1) })
+        let collapsed = ProviderSnapshot(
+            name: "Antigravity",
+            shortName: "AG",
+            plan: agPlan,
+            windows: worst.map { [$0] } ?? [],
+            isAvailable: agAvailable
         )
+        result.insert(collapsed, at: min(slot, result.count))
+        return result
     }
 
     public static func fallbackTitle(for snapshots: [ProviderSnapshot]) -> String {

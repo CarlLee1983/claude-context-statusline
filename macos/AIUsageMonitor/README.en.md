@@ -51,7 +51,10 @@ can toggle it). Installing to `/Applications` first gives a stable path so the r
 - **Live Codex usage**: `codex app-server` JSON-RPC rate limits, 5h / 7d windows.
 - **Live Antigravity usage**: drives `agy /usage` over a pseudo-TTY for per-model available quota;
   falls back to the local `~/.config/opencode/antigravity-accounts.json` cooldown / ready state when
-  that can't be captured.
+  that can't be captured. The redesigned `agy /usage` panel is now split into two model groups
+  (Gemini and Claude/GPT), so the dropdown shows two independent cards, each with its own Weekly /
+  Five Hour quota bars; the menu bar still collapses them into a single Antigravity chip showing the
+  lowest remaining of the two groups, and both cards share one Antigravity toggle.
 - **Native AppKit menu bar UI**: 5-minute auto-refresh plus a manual Refresh action.
 - **Menu bar and query settings**: **Show in Menu Bar** chooses which providers stay in the menu bar
   summary; when all are unchecked, the app keeps one AI icon and still opens the details menu.

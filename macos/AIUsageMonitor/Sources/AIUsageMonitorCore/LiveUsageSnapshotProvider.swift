@@ -6,7 +6,7 @@ import Foundation
 public struct LiveUsageSnapshotProvider: UsageSnapshotProviding {
     private let claude: any ProviderSnapshotProviding
     private let codex: any ProviderSnapshotProviding
-    private let antigravity: any ProviderSnapshotProviding
+    private let antigravity: any UsageSnapshotProviding
     private let enabledProviderIDs: Set<UsageProviderID>
 
     public init(enabledProviderIDs: Set<UsageProviderID> = Set(UsageProviderID.allCases)) {
@@ -21,7 +21,7 @@ public struct LiveUsageSnapshotProvider: UsageSnapshotProviding {
     public init(
         claude: any ProviderSnapshotProviding,
         codex: any ProviderSnapshotProviding,
-        antigravity: any ProviderSnapshotProviding,
+        antigravity: any UsageSnapshotProviding,
         enabledProviderIDs: Set<UsageProviderID>
     ) {
         self.claude = claude
@@ -31,23 +31,23 @@ public struct LiveUsageSnapshotProvider: UsageSnapshotProviding {
     }
 
     public func snapshots() async -> [ProviderSnapshot] {
-        await withTaskGroup(of: (UsageProviderID, ProviderSnapshot).self) { group in
+        await withTaskGroup(of: (UsageProviderID, [ProviderSnapshot]).self) { group in
             if enabledProviderIDs.contains(.claudeCode) {
-                group.addTask { (.claudeCode, await claude.snapshot()) }
+                group.addTask { (.claudeCode, [await claude.snapshot()]) }
             }
             if enabledProviderIDs.contains(.codex) {
-                group.addTask { (.codex, await codex.snapshot()) }
+                group.addTask { (.codex, [await codex.snapshot()]) }
             }
             if enabledProviderIDs.contains(.antigravity) {
-                group.addTask { (.antigravity, await antigravity.snapshot()) }
+                group.addTask { (.antigravity, await antigravity.snapshots()) }
             }
 
-            var results: [UsageProviderID: ProviderSnapshot] = [:]
-            for await (providerID, snapshot) in group {
-                results[providerID] = snapshot
+            var results: [UsageProviderID: [ProviderSnapshot]] = [:]
+            for await (providerID, snapshots) in group {
+                results[providerID] = snapshots
             }
 
-            return UsageProviderID.allCases.compactMap { results[$0] }
+            return UsageProviderID.allCases.flatMap { results[$0] ?? [] }
         }
     }
 }

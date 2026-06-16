@@ -72,35 +72,6 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.emptyDetailTitle(for: withData) == nil)
     }
 
-    @Test("merges Antigravity model variants into the binding (lowest remaining) window")
-    func mergesAntigravityVariantsIntoBindingWindow() {
-        let reset = Date(timeIntervalSince1970: 1_800_000_000)
-        let windows = [
-            UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 60, kind: .available, resetAt: reset),
-            UsageWindow(label: "Gemini 3.1 Pro (High)", percent: 60, kind: .available, resetAt: reset),
-            UsageWindow(label: "Gemini 2.0 Flash", percent: 100, kind: .available)
-        ]
-
-        let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: windows)
-
-        #expect(merged?.label == "Gemini")
-        #expect(merged.map { RemainingQuotaPresenter.remainingPercent(for: $0) } == 60)
-        // Carries the binding model's reset instant, not the 100% (no-reset) one.
-        #expect(merged?.resetAt == reset)
-    }
-
-    @Test("merged Antigravity window is 100% when all variants are full, and nil when empty")
-    func mergedAntigravityWindowEdgeCases() {
-        let allReady = [
-            UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 100, kind: .available),
-            UsageWindow(label: "Gemini 3.1 Pro (High)", percent: 100, kind: .available)
-        ]
-        let merged = RemainingQuotaPresenter.mergedAntigravityWindow(from: allReady)
-        #expect(merged.map { RemainingQuotaPresenter.remainingPercent(for: $0) } == 100)
-
-        #expect(RemainingQuotaPresenter.mergedAntigravityWindow(from: []) == nil)
-    }
-
     @Test("maps remaining percent to status tiers at the repo thresholds")
     func remainingTiers() {
         // critical: <= 10
@@ -191,5 +162,43 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.isExpiringUnused(
             for: UsageWindow(label: "5h", percent: 55, kind: .available, resetAt: now.addingTimeInterval(20 * 60)),
             now: now) == true)
+    }
+
+    @Test("collapses AG-prefixed snapshots into one worst-remaining menu-bar entry")
+    func collapsesAntigravityForMenuBar() {
+        let reset = Date(timeIntervalSince1970: 1_800_000_000)
+        let snapshots = [
+            ProviderSnapshot(name: "Claude Code", shortName: "CC",
+                             windows: [UsageWindow(label: "5h", percent: 3, kind: .used)]),
+            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
+                             windows: [UsageWindow(label: "Weekly Limit", percent: 77, kind: .available)]),
+            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
+                             windows: [UsageWindow(label: "Weekly Limit", percent: 0, kind: .available, resetAt: reset)])
+        ]
+
+        let collapsed = RemainingQuotaPresenter.collapsedForMenuBar(snapshots)
+
+        // CC untouched, the two AG cards become one "Antigravity" entry.
+        #expect(collapsed.map(\.shortName) == ["CC", "AG"])
+        #expect(collapsed[1].name == "Antigravity")
+        // Worst (lowest remaining) of the two AG windows represents the entry.
+        #expect(RemainingQuotaPresenter.primaryRemainingPercent(for: collapsed[1]) == 0)
+        // fallback title reflects the collapsed entries.
+        #expect(RemainingQuotaPresenter.fallbackTitle(for: collapsed) == "Claude Code 97 Antigravity 0")
+    }
+
+    @Test("collapse leaves non-AG snapshots and a lone AG snapshot unchanged in order")
+    func collapsePreservesOthers() {
+        let snapshots = [
+            ProviderSnapshot(name: "Antigravity", shortName: "AG",
+                             windows: [UsageWindow(label: "Claude", percent: 100, kind: .used)]),
+            ProviderSnapshot(name: "Codex", shortName: "CX",
+                             windows: [UsageWindow(label: "5h", percent: 1, kind: .used)])
+        ]
+
+        let collapsed = RemainingQuotaPresenter.collapsedForMenuBar(snapshots)
+
+        #expect(collapsed.map(\.shortName) == ["AG", "CX"])
+        #expect(RemainingQuotaPresenter.primaryRemainingPercent(for: collapsed[0]) == 0)
     }
 }

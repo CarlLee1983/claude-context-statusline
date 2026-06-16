@@ -51,12 +51,20 @@ public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
                 ]
             ),
             ProviderSnapshot(
-                name: "Antigravity",
-                shortName: "AG",
+                name: "Antigravity · Gemini",
+                shortName: "AGg",
                 plan: "agy /usage",
                 windows: [
-                    UsageWindow(label: "Gemini 3.5 Flash (Medium)", percent: 100, kind: .available),
-                    UsageWindow(label: "Claude Opus 4.6 (Thinking)", percent: 100, kind: .available)
+                    UsageWindow(label: "Weekly Limit", percent: 77, kind: .available, resetAt: Date().addingTimeInterval(59 * 3_600)),
+                    UsageWindow(label: "Five Hour Limit", percent: 100, kind: .available)
+                ]
+            ),
+            ProviderSnapshot(
+                name: "Antigravity · Claude & GPT",
+                shortName: "AGc",
+                plan: "agy /usage",
+                windows: [
+                    UsageWindow(label: "Weekly Limit", percent: 0, kind: .available, resetAt: Date().addingTimeInterval(40 * 3_600))
                 ]
             )
         ]
