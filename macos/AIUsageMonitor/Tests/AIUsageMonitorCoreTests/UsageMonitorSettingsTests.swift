@@ -55,17 +55,6 @@ struct UsageMonitorSettingsTests {
         #expect(await antigravity.callCount == 0)
     }
 
-    @Test("any AG-prefixed shortName resolves to the antigravity provider")
-    func agPrefixResolvesToAntigravity() {
-        #expect(UsageProviderID(shortName: "AG") == .antigravity)
-        #expect(UsageProviderID(shortName: "AGg") == .antigravity)
-        #expect(UsageProviderID(shortName: "AGc") == .antigravity)
-        #expect(UsageProviderID(shortName: "AG1") == .antigravity)
-        #expect(UsageProviderID(shortName: "CC") == .claudeCode)
-        #expect(UsageProviderID(shortName: "CX") == .codex)
-        #expect(UsageProviderID(shortName: "ZZ") == nil)
-    }
-
     @Test("a single antigravity toggle controls both grouped cards")
     func singleToggleControlsBothAntigravityCards() {
         let settings = UsageMonitorSettings(

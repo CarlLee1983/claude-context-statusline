@@ -46,31 +46,6 @@ public struct UsageMonitorSettings: Equatable, Sendable {
     }
 
     public func menuBarSnapshots(from snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
-        snapshots.filter { snapshot in
-            guard let providerID = UsageProviderID(shortName: snapshot.shortName) else { return false }
-            return menuBarProviderIDs.contains(providerID)
-        }
-    }
-}
-
-public extension UsageProviderID {
-    /// Antigravity surfaces as multiple grouped cards whose shortNames share the
-    /// "AG" prefix ("AGg", "AGc", …). Centralizes that convention so the settings
-    /// mapping and the menu-bar collapse stay in agreement.
-    static func isAntigravity(shortName: String) -> Bool {
-        shortName.hasPrefix("AG")
-    }
-
-    init?(shortName: String) {
-        // Any "AG"-prefixed shortName maps back to the single antigravity provider
-        // so one toggle controls every grouped card.
-        if Self.isAntigravity(shortName: shortName) {
-            self = .antigravity
-            return
-        }
-        guard let provider = Self.allCases.first(where: { $0.shortName == shortName }) else {
-            return nil
-        }
-        self = provider
+        snapshots.filter { menuBarProviderIDs.contains($0.providerID) }
     }
 }
