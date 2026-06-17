@@ -22,6 +22,9 @@ public struct UsageWindow: Equatable, Identifiable, Sendable {
 }
 
 public struct ProviderSnapshot: Equatable, Identifiable, Sendable {
+    /// Per-card uniqueness for SwiftUI `ForEach` (== `shortName`); grouped
+    /// Antigravity cards share a `providerID` but need distinct `id`s. Identity
+    /// (which source this is) lives in `providerID`, not here — don't conflate.
     public let id: String
     public let providerID: UsageProviderID
     public let name: String
