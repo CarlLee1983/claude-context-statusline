@@ -17,16 +17,19 @@ struct RemainingQuotaPresenterTests {
     func fallbackTitleUsesRemainingValues() {
         let snapshots = [
             ProviderSnapshot(
+                providerID: .claudeCode,
                 name: "Claude Code",
                 shortName: "CC",
                 windows: [UsageWindow(label: "5h", percent: 3, kind: .used)]
             ),
             ProviderSnapshot(
+                providerID: .codex,
                 name: "Codex",
                 shortName: "CX",
                 windows: [UsageWindow(label: "5h", percent: 1, kind: .used)]
             ),
             ProviderSnapshot(
+                providerID: .antigravity,
                 name: "Antigravity",
                 shortName: "AG",
                 windows: [UsageWindow(label: "Gemini", percent: 100, kind: .available)]
@@ -48,6 +51,7 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.fallbackTitle(for: []) == "AI —")
 
         let unavailable = ProviderSnapshot(
+            providerID: .codex,
             name: "Codex",
             shortName: "CX",
             windows: [],
@@ -59,9 +63,10 @@ struct RemainingQuotaPresenterTests {
 
     @Test("builds empty provider dropdown details for unavailable and no data states")
     func emptyProviderDropdownDetails() {
-        let unavailable = ProviderSnapshot(name: "Codex", shortName: "CX", windows: [], isAvailable: false)
-        let noData = ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: [], isAvailable: true)
+        let unavailable = ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: [], isAvailable: false)
+        let noData = ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: [], isAvailable: true)
         let withData = ProviderSnapshot(
+            providerID: .antigravity,
             name: "Antigravity",
             shortName: "AG",
             windows: [UsageWindow(label: "Gemini", percent: 100, kind: .available)]
@@ -168,11 +173,11 @@ struct RemainingQuotaPresenterTests {
     func collapsesAntigravityForMenuBar() {
         let reset = Date(timeIntervalSince1970: 1_800_000_000)
         let snapshots = [
-            ProviderSnapshot(name: "Claude Code", shortName: "CC",
+            ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC",
                              windows: [UsageWindow(label: "5h", percent: 3, kind: .used)]),
-            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
                              windows: [UsageWindow(label: "Weekly Limit", percent: 77, kind: .available)]),
-            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
                              windows: [UsageWindow(label: "Weekly Limit", percent: 0, kind: .available, resetAt: reset)])
         ]
 
@@ -190,9 +195,9 @@ struct RemainingQuotaPresenterTests {
     @Test("collapse leaves non-AG snapshots and a lone AG snapshot unchanged in order")
     func collapsePreservesOthers() {
         let snapshots = [
-            ProviderSnapshot(name: "Antigravity", shortName: "AG",
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity", shortName: "AG",
                              windows: [UsageWindow(label: "Claude", percent: 100, kind: .used)]),
-            ProviderSnapshot(name: "Codex", shortName: "CX",
+            ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX",
                              windows: [UsageWindow(label: "5h", percent: 1, kind: .used)])
         ]
 

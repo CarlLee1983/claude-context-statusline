@@ -23,6 +23,7 @@ public struct UsageWindow: Equatable, Identifiable, Sendable {
 
 public struct ProviderSnapshot: Equatable, Identifiable, Sendable {
     public let id: String
+    public let providerID: UsageProviderID
     public let name: String
     public let shortName: String
     public let plan: String?
@@ -31,6 +32,7 @@ public struct ProviderSnapshot: Equatable, Identifiable, Sendable {
     public let updatedAt: Date
 
     public init(
+        providerID: UsageProviderID,
         name: String,
         shortName: String,
         plan: String? = nil,
@@ -39,6 +41,7 @@ public struct ProviderSnapshot: Equatable, Identifiable, Sendable {
         updatedAt: Date = .now
     ) {
         self.id = shortName
+        self.providerID = providerID
         self.name = name
         self.shortName = shortName
         self.plan = plan

@@ -14,6 +14,7 @@ public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
     public func snapshots() async -> [ProviderSnapshot] {
         [
             ProviderSnapshot(
+                providerID: .claudeCode,
                 name: "Claude Code",
                 shortName: "CC",
                 windows: [
@@ -32,6 +33,7 @@ public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
                 ]
             ),
             ProviderSnapshot(
+                providerID: .codex,
                 name: "Codex",
                 shortName: "CX",
                 plan: "plus",
@@ -51,6 +53,7 @@ public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
                 ]
             ),
             ProviderSnapshot(
+                providerID: .antigravity,
                 name: "Antigravity · Gemini",
                 shortName: "AGg",
                 plan: "agy /usage",
@@ -60,6 +63,7 @@ public struct DemoUsageSnapshotProvider: UsageSnapshotProviding {
                 ]
             ),
             ProviderSnapshot(
+                providerID: .antigravity,
                 name: "Antigravity · Claude & GPT",
                 shortName: "AGc",
                 plan: "agy /usage",

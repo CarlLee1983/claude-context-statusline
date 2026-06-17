@@ -9,7 +9,7 @@ public struct CodexUsageProvider: ProviderSnapshotProviding {
 
     public func snapshot() async -> ProviderSnapshot {
         let unavailable = ProviderSnapshot(
-            name: "Codex", shortName: "CX", windows: [], isAvailable: false
+            providerID: .codex, name: "Codex", shortName: "CX", windows: [], isAvailable: false
         )
         guard let result = Self.readRateLimitsResult() else { return unavailable }
         return (try? CodexRateLimitParser.parse(result)) ?? unavailable

@@ -95,6 +95,7 @@ public enum RemainingQuotaPresenter {
 
         let worst = agWindows.min(by: { remainingPercent(for: $0) < remainingPercent(for: $1) })
         let collapsed = ProviderSnapshot(
+            providerID: .antigravity,
             name: "Antigravity",
             shortName: "AG",
             plan: agPlan,

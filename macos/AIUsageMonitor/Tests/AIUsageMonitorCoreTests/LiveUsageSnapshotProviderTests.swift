@@ -16,10 +16,10 @@ struct LiveUsageSnapshotProviderTests {
 
     @Test("flattens the antigravity group snapshots after claude and codex, in order")
     func flattensAntigravityGroups() async {
-        let cc = ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: [])
-        let cx = ProviderSnapshot(name: "Codex", shortName: "CX", windows: [])
-        let agg = ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", windows: [])
-        let agc = ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", windows: [])
+        let cc = ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: [])
+        let cx = ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: [])
+        let agg = ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Gemini", shortName: "AGg", windows: [])
+        let agc = ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Claude & GPT", shortName: "AGc", windows: [])
 
         let provider = LiveUsageSnapshotProvider(
             claude: FakeSingle(snap: cc),

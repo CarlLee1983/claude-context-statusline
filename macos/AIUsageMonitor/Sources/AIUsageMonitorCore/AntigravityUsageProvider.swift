@@ -34,7 +34,7 @@ public struct AntigravityUsageProvider: UsageSnapshotProviding {
 
     public func snapshots() async -> [ProviderSnapshot] {
         let unavailable = ProviderSnapshot(
-            name: "Antigravity", shortName: "AG", windows: [], isAvailable: false
+            providerID: .antigravity, name: "Antigravity", shortName: "AG", windows: [], isAvailable: false
         )
 
         // The TUI capture blocks (up to ~12s); keep it off the cooperative pool.
@@ -51,7 +51,7 @@ public struct AntigravityUsageProvider: UsageSnapshotProviding {
         let result = AntigravityAccountsParser.parse(data, now: now())
         guard result.hasAccounts else { return [unavailable] }
         return [ProviderSnapshot(
-            name: "Antigravity", shortName: "AG", plan: result.plan, windows: result.windows
+            providerID: .antigravity, name: "Antigravity", shortName: "AG", plan: result.plan, windows: result.windows
         )]
     }
 
@@ -67,6 +67,7 @@ public struct AntigravityUsageProvider: UsageSnapshotProviding {
             if used.contains(short) { short = "AG\(index)" }
             used.insert(short)
             return ProviderSnapshot(
+                providerID: .antigravity,
                 name: "Antigravity · \(group.title)",
                 shortName: short,
                 plan: "agy /usage",

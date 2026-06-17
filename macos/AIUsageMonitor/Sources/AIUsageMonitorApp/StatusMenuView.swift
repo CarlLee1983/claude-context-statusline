@@ -107,6 +107,7 @@ public struct StatusMenuView: View {
 #Preview {
     StatusMenuView(snapshots: [
         ProviderSnapshot(
+            providerID: .claudeCode,
             name: "Claude Code",
             shortName: "CC",
             plan: "Pro",
@@ -116,6 +117,7 @@ public struct StatusMenuView: View {
             ]
         ),
         ProviderSnapshot(
+            providerID: .codex,
             name: "Codex",
             shortName: "CX",
             plan: nil,
@@ -124,6 +126,7 @@ public struct StatusMenuView: View {
             ]
         ),
         ProviderSnapshot(
+            providerID: .antigravity,
             name: "Antigravity · Gemini",
             shortName: "AGg",
             plan: "agy /usage",
@@ -133,6 +136,7 @@ public struct StatusMenuView: View {
             ]
         ),
         ProviderSnapshot(
+            providerID: .antigravity,
             name: "Antigravity · Claude & GPT",
             shortName: "AGc",
             plan: "agy /usage",

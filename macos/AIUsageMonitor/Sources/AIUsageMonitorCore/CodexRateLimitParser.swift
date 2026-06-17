@@ -4,7 +4,7 @@ public enum CodexRateLimitParser {
     public static func parse(_ data: Data) throws -> ProviderSnapshot {
         let decoded = try JSONDecoder().decode(Response.self, from: data)
         guard let rateLimits = decoded.rateLimits else {
-            return ProviderSnapshot(name: "Codex", shortName: "CX", windows: [], isAvailable: false)
+            return ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: [], isAvailable: false)
         }
 
         var windows: [UsageWindow] = []
@@ -30,6 +30,7 @@ public enum CodexRateLimitParser {
         }
 
         return ProviderSnapshot(
+            providerID: .codex,
             name: "Codex",
             shortName: "CX",
             plan: rateLimits.planType,

@@ -16,9 +16,9 @@ struct UsageMonitorSettingsTests {
     @Test("filters menu bar snapshots without removing dropdown data")
     func filtersMenuBarSnapshots() {
         let snapshots = [
-            ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: []),
-            ProviderSnapshot(name: "Codex", shortName: "CX", windows: []),
-            ProviderSnapshot(name: "Antigravity", shortName: "AG", windows: [])
+            ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: []),
+            ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: []),
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity", shortName: "AG", windows: [])
         ]
         let settings = UsageMonitorSettings(
             menuBarProviderIDs: [.codex],
@@ -36,9 +36,9 @@ struct UsageMonitorSettingsTests {
 
     @Test("live provider only calls selected usage sources")
     func liveProviderOnlyCallsSelectedSources() async {
-        let claude = CountingProvider(snapshot: ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: []))
-        let codex = CountingProvider(snapshot: ProviderSnapshot(name: "Codex", shortName: "CX", windows: []))
-        let antigravity = CountingProvider(snapshot: ProviderSnapshot(name: "Antigravity", shortName: "AG", windows: []))
+        let claude = CountingProvider(snapshot: ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: []))
+        let codex = CountingProvider(snapshot: ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: []))
+        let antigravity = CountingProvider(snapshot: ProviderSnapshot(providerID: .antigravity, name: "Antigravity", shortName: "AG", windows: []))
 
         let provider = LiveUsageSnapshotProvider(
             claude: claude,
@@ -73,9 +73,9 @@ struct UsageMonitorSettingsTests {
             queriedProviderIDs: Set(UsageProviderID.allCases)
         )
         let snapshots = [
-            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", windows: []),
-            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", windows: []),
-            ProviderSnapshot(name: "Codex", shortName: "CX", windows: [])
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Gemini", shortName: "AGg", windows: []),
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Claude & GPT", shortName: "AGc", windows: []),
+            ProviderSnapshot(providerID: .codex, name: "Codex", shortName: "CX", windows: [])
         ]
 
         let shown = settings.menuBarSnapshots(from: snapshots)

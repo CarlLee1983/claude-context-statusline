@@ -20,9 +20,9 @@ struct StatusMenuImageRendererTests {
     @Test("two grouped Antigravity snapshots render as one combined fallback entry")
     func combinesAntigravityInStatus() {
         let snapshots = [
-            ProviderSnapshot(name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Gemini", shortName: "AGg", plan: "agy /usage",
                              windows: [UsageWindow(label: "Weekly Limit", percent: 77, kind: .available)]),
-            ProviderSnapshot(name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
+            ProviderSnapshot(providerID: .antigravity, name: "Antigravity · Claude & GPT", shortName: "AGc", plan: "agy /usage",
                              windows: [UsageWindow(label: "Weekly Limit", percent: 0, kind: .available)])
         ]
 

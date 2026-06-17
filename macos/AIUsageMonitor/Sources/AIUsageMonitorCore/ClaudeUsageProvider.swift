@@ -8,13 +8,13 @@ public struct ClaudeUsageProvider: ProviderSnapshotProviding {
 
     public func snapshot() async -> ProviderSnapshot {
         let unavailable = ProviderSnapshot(
-            name: "Claude Code", shortName: "CC", windows: [], isAvailable: false
+            providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: [], isAvailable: false
         )
         guard let token = Self.readAccessToken() else { return unavailable }
         guard let data = await Self.fetchUsage(token: token) else { return unavailable }
         let windows = ClaudeUsageParser.parse(data)
         guard !windows.isEmpty else { return unavailable }
-        return ProviderSnapshot(name: "Claude Code", shortName: "CC", windows: windows)
+        return ProviderSnapshot(providerID: .claudeCode, name: "Claude Code", shortName: "CC", windows: windows)
     }
 
     private static func readAccessToken() -> String? {
