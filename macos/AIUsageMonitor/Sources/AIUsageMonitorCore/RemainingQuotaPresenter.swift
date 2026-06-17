@@ -66,44 +66,36 @@ public enum RemainingQuotaPresenter {
         return remainingPercent(for: firstWindow)
     }
 
-    /// Collapses the (possibly multiple) AG-prefixed snapshots into a single
-    /// "Antigravity" entry for the compact menu bar, keeping it to one chip. The
-    /// representative window is the worst (lowest remaining) across all AG groups,
-    /// so the tightest pool surfaces. Non-AG snapshots keep their position; the AG
-    /// entry takes the slot of the first AG snapshot seen.
+    /// Collapses snapshots so each provider occupies one compact menu-bar chip.
+    /// Snapshots are grouped by `providerID`, preserving the order each provider
+    /// first appears. A provider with a single snapshot is left untouched. A
+    /// provider that emitted multiple snapshots is merged into one chip whose
+    /// representative window is the worst (lowest remaining) across the group, so
+    /// the tightest pool surfaces. The chip's name/shortName come from the
+    /// provider id, keeping the rule free of any per-provider special case.
     public static func collapsedForMenuBar(_ snapshots: [ProviderSnapshot]) -> [ProviderSnapshot] {
-        var result: [ProviderSnapshot] = []
-        var agWindows: [UsageWindow] = []
-        var agPlan: String?
-        var agAvailable = false
-        var agSlot: Int?
-
+        var order: [UsageProviderID] = []
+        var groups: [UsageProviderID: [ProviderSnapshot]] = [:]
         for snapshot in snapshots {
-            if UsageProviderID.isAntigravity(shortName: snapshot.shortName) {
-                if agSlot == nil {
-                    agSlot = result.count
-                    agPlan = snapshot.plan
-                }
-                agAvailable = agAvailable || snapshot.isAvailable
-                agWindows.append(contentsOf: snapshot.windows)
-            } else {
-                result.append(snapshot)
-            }
+            if groups[snapshot.providerID] == nil { order.append(snapshot.providerID) }
+            groups[snapshot.providerID, default: []].append(snapshot)
         }
 
-        guard let slot = agSlot else { return result }
+        return order.compactMap { providerID -> ProviderSnapshot? in
+            guard let group = groups[providerID] else { return nil }
+            if group.count == 1 { return group[0] }
 
-        let worst = agWindows.min(by: { remainingPercent(for: $0) < remainingPercent(for: $1) })
-        let collapsed = ProviderSnapshot(
-            providerID: .antigravity,
-            name: "Antigravity",
-            shortName: "AG",
-            plan: agPlan,
-            windows: worst.map { [$0] } ?? [],
-            isAvailable: agAvailable
-        )
-        result.insert(collapsed, at: min(slot, result.count))
-        return result
+            let windows = group.flatMap(\.windows)
+            let worst = windows.min(by: { remainingPercent(for: $0) < remainingPercent(for: $1) })
+            return ProviderSnapshot(
+                providerID: providerID,
+                name: providerID.displayName,
+                shortName: providerID.shortName,
+                plan: group.first?.plan,
+                windows: worst.map { [$0] } ?? [],
+                isAvailable: group.contains { $0.isAvailable }
+            )
+        }
     }
 
     public static func fallbackTitle(for snapshots: [ProviderSnapshot]) -> String {

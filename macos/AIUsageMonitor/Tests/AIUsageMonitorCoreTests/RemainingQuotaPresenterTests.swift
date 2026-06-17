@@ -192,6 +192,24 @@ struct RemainingQuotaPresenterTests {
         #expect(RemainingQuotaPresenter.fallbackTitle(for: collapsed) == "Claude Code 97 Antigravity 0")
     }
 
+    @Test("collapses any provider that emits multiple snapshots, not just antigravity")
+    func collapsesAnyMultiSnapshotProvider() {
+        let snapshots = [
+            ProviderSnapshot(providerID: .codex, name: "Codex A", shortName: "CXa",
+                             windows: [UsageWindow(label: "5h", percent: 20, kind: .available)]),
+            ProviderSnapshot(providerID: .codex, name: "Codex B", shortName: "CXb",
+                             windows: [UsageWindow(label: "5h", percent: 5, kind: .available)])
+        ]
+
+        let collapsed = RemainingQuotaPresenter.collapsedForMenuBar(snapshots)
+
+        // Two codex snapshots become one "Codex" chip with the worst remaining window.
+        #expect(collapsed.map(\.shortName) == ["CX"])
+        #expect(collapsed[0].name == "Codex")
+        #expect(collapsed[0].providerID == .codex)
+        #expect(RemainingQuotaPresenter.primaryRemainingPercent(for: collapsed[0]) == 5)
+    }
+
     @Test("collapse leaves non-AG snapshots and a lone AG snapshot unchanged in order")
     func collapsePreservesOthers() {
         let snapshots = [
