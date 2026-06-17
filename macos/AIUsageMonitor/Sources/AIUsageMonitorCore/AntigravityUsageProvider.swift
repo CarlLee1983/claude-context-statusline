@@ -55,9 +55,10 @@ public struct AntigravityUsageProvider: UsageSnapshotProviding {
         )]
     }
 
-    /// One independent card per group. shortName = "AG" + the group's first
-    /// alphanumeric (lowercased); collisions fall back to the group index so the
-    /// snapshot ids (== shortName) stay unique for SwiftUI's ForEach.
+    /// One independent card per group. Identity is carried by `providerID`
+    /// (`.antigravity`); shortName is a display-only label, "AG" + the group's
+    /// first alphanumeric (lowercased), with collisions falling back to the group
+    /// index so the snapshot ids (== shortName) stay unique for SwiftUI's ForEach.
     static func snapshots(from groups: [AntigravityUsageParser.ParsedGroup]) -> [ProviderSnapshot] {
         var used: Set<String> = []
         return groups.enumerated().map { index, group in
