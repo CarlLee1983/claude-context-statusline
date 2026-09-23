@@ -48,7 +48,8 @@ APP_INSTALL_DIR="$HOME/Applications" ./Scripts/install-app.sh
 
 ## 目前涵蓋範圍
 
-- **Claude Code 即時用量**：Keychain OAuth token → Anthropic usage 端點，取 5h / 7d 視窗。
+- **Claude Code 即時用量**：優先用 Keychain OAuth token 查 Anthropic usage 端點；憑證或端點不可用時，
+  以本機 `claude --print /usage` 取得 5h / 7d 視窗。備援查詢不會主動執行登入指令。
 - **Codex 即時用量**：`codex app-server` JSON-RPC rate limits，取 5h / 7d 視窗。
 - **Antigravity 即時用量**：優先以 pseudo-TTY 驅動 `agy /usage` 取各模型可用 quota；
   取不到時退回讀本機 `~/.config/opencode/antigravity-accounts.json` 的 cooldown / ready 狀態。
@@ -80,8 +81,10 @@ Sources/
     ├── UsageSnapshotProvider.swift    # provider 介面
     ├── UsageMonitorSettings.swift     # provider 顯示/查詢設定模型
     ├── LiveUsageSnapshotProvider.swift# 彙整各 provider 的即時快照
-    ├── ClaudeUsageProvider.swift      # Claude：Keychain token → usage 端點
+    ├── ClaudeUsageProvider.swift      # Claude：usage 端點，失敗時轉 CLI
     ├── ClaudeUsageParser.swift        # 解析 Anthropic usage 回應
+    ├── ClaudeCLIUsageCapture.swift    # 有時限地執行本機 claude /usage
+    ├── ClaudeCLIUsageParser.swift     # 解析 CLI 本地 /usage 結果
     ├── CodexUsageProvider.swift       # Codex：app-server JSON-RPC
     ├── CodexExecutableResolver.swift  # 在受限 PATH 下尋找 codex 執行檔
     ├── CodexRateLimitParser.swift     # 解析 Codex rate-limit 回應
@@ -121,8 +124,8 @@ swift test
 
 - **選單列沒出現**：確認是以 `.app` bundle 開啟（`build-app.sh` 產出的版本含 `LSUIElement`）；
   直接 `swift run` 在某些情況下選單列圖示可能不穩定。
-- **Claude 沒有資料**：確認已登入 Claude Code（Keychain 內有 `Claude Code-credentials`）、
-  且可連線 `api.anthropic.com`。
+- **Claude 沒有資料**：確認本機 `claude --print /usage --output-format json` 能顯示用量；
+  App 也會嘗試 Keychain OAuth token 與 `api.anthropic.com`。若兩者都不可用，Claude 卡片會顯示無資料。
 - **Codex 沒有資料**：確認 `codex` 可在終端機執行；App 會嘗試常見安裝路徑來定位執行檔。
 
 ## 需求

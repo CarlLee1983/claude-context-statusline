@@ -47,7 +47,9 @@ can toggle it). Installing to `/Applications` first gives a stable path so the r
 
 ## Current coverage
 
-- **Live Claude Code usage**: Keychain OAuth token → Anthropic usage endpoint, 5h / 7d windows.
+- **Live Claude Code usage**: queries the Anthropic usage endpoint with the Keychain OAuth token first;
+  when the credential or endpoint is unavailable, reads the 5h / 7d windows from local
+  `claude --print /usage`. The fallback does not invoke a login command.
 - **Live Codex usage**: `codex app-server` JSON-RPC rate limits, 5h / 7d windows.
 - **Live Antigravity usage**: drives `agy /usage` over a pseudo-TTY for per-model available quota;
   falls back to the local `~/.config/opencode/antigravity-accounts.json` cooldown / ready state when
@@ -83,8 +85,10 @@ Sources/
     ├── UsageSnapshotProvider.swift    # Provider protocol
     ├── UsageMonitorSettings.swift     # Provider display/query settings model
     ├── LiveUsageSnapshotProvider.swift# Aggregates providers into a live snapshot
-    ├── ClaudeUsageProvider.swift      # Claude: Keychain token → usage endpoint
+    ├── ClaudeUsageProvider.swift      # Claude: usage endpoint, then CLI fallback
     ├── ClaudeUsageParser.swift        # Parses the Anthropic usage response
+    ├── ClaudeCLIUsageCapture.swift    # Runs local claude /usage with a timeout
+    ├── ClaudeCLIUsageParser.swift     # Parses the local CLI /usage result
     ├── CodexUsageProvider.swift       # Codex: app-server JSON-RPC
     ├── CodexExecutableResolver.swift  # Locates the codex executable on a minimal PATH
     ├── CodexRateLimitParser.swift     # Parses the Codex rate-limit response
@@ -126,8 +130,9 @@ and `RemainingQuotaPresenter`.
 
 - **No menu bar icon**: make sure you launched the `.app` bundle (the `build-app.sh` output includes
   `LSUIElement`); a bare `swift run` can be flaky for menu bar visibility.
-- **No Claude data**: confirm you're logged into Claude Code (the Keychain holds
-  `Claude Code-credentials`) and can reach `api.anthropic.com`.
+- **No Claude data**: check whether local `claude --print /usage --output-format json` returns usage.
+  The app also tries the Keychain OAuth token and `api.anthropic.com`; when both sources fail,
+  the Claude card shows unavailable.
 - **No Codex data**: confirm `codex` runs from your terminal; the app tries common install paths to
   locate the executable.
 

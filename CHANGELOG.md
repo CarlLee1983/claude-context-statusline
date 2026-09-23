@@ -9,6 +9,12 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Fixed 修正
+- **Claude 用量備援查詢**：Keychain 缺少 Claude 訂閱 OAuth token 或 usage 端點不可用時，
+  改讀本機 Claude Code 的 `/usage` 結果，恢復選單列 5h / 7d 用量顯示。
+  **Claude usage fallback**: read the local Claude Code `/usage` result when the Keychain
+  subscription OAuth token or usage endpoint is unavailable, restoring 5h / 7d menu bar usage.
+
 ### Changed 變更
 - **Antigravity 分群組額度顯示**：解析改版後分群組的 `agy /usage` 面板，下拉選單拆成
   Gemini 與 Claude/GPT 兩張獨立卡片（各自 Weekly / Five Hour），menu bar 合併為單一

@@ -69,7 +69,7 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 ### macOS 原生 App（`macos/AIUsageMonitor`）
 
 - Swift Package（`swift-tools-version: 6.0`，macOS 14+），分兩個目標：可測試的純邏輯庫 `AIUsageMonitorCore` 與 AppKit 外殼 `AIUsageMonitorApp`。
-- provider 各自負責一個來源：`ClaudeUsageProvider`（Keychain token → Anthropic usage 端點）、`CodexUsageProvider`（`codex app-server` JSON-RPC）、`AntigravityUsageProvider`（先 PTY 驅動 `agy /usage`，退回讀帳號檔 cooldown），由 `LiveUsageSnapshotProvider` 彙整成快照。
+- provider 各自負責一個來源：`ClaudeUsageProvider`（優先用 Keychain token 查 Anthropic usage 端點，失敗時讀本機 `claude /usage`）、`CodexUsageProvider`（`codex app-server` JSON-RPC）、`AntigravityUsageProvider`（先 PTY 驅動 `agy /usage`，退回讀帳號檔 cooldown），由 `LiveUsageSnapshotProvider` 彙整成快照。
 - `RemainingQuotaPresenter` 一律以「**剩餘**額度」決定顯示文字與狀態分級（非已用量）。
 - Antigravity 取數：`AntigravityUsageTextCapture`（PTY thin boundary，不單測）+ `AntigravityUsageParser`（去 ANSI 解析面板）+ `AntigravityAccountsParser`（pure，帳號檔 cooldown）。注意 `AntigravityUsageParser.stripANSI` 必須用真實 ESC byte（`"\u{1B}"`）餵 ICU regex，不能用 raw string `\u{001B}`（ICU 不認得）。
 - 開發指令：`cd macos/AIUsageMonitor && swift test`（測試）、`./Scripts/build-app.sh`（產 `.app` bundle，含 `LSUIElement`）、`./Scripts/install-app.sh`（build + 複製到 `/Applications`，可用 `APP_INSTALL_DIR` 覆寫、`APP_INSTALL_OPEN=0` 不自動開）。
