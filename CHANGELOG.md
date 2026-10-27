@@ -9,6 +9,8 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-27
+
 ### Changed 變更
 - **ctx-statusline 外觀改為「A 膠囊」**：以家族色（Fable / Opus / Sonnet / Haiku，未知為灰）為底色的模型膠囊，
   搭配 12 格八分之一格平滑進度條與暗色 `─` 軌道；額度顯示距離重置的倒數
