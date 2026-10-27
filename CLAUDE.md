@@ -20,7 +20,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 python3 -m unittest discover -s tests -v
 
 # 用模擬的 statusline JSON 餵入腳本，觀察輸出（會帶 ANSI 色碼）
-echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl"}' | ./ctx-statusline.py
+echo '{"model":{"id":"claude-opus-4-8","display_name":"Opus 4.8"},"transcript_path":"/path/to/transcript.jsonl","context_window":{"context_window_size":1000000,"current_usage":{"input_tokens":5,"cache_read_input_tokens":200000,"cache_creation_input_tokens":29000}},"rate_limits":{"five_hour":{"used_percentage":11,"resets_at":1793091600},"seven_day":{"used_percentage":14,"resets_at":1793383200}}}' | ./ctx-statusline.py
 
 # 檢查 shell 腳本（注意：zsh 下別用未加引號的變數展開多檔，會不分詞；直接列檔最穩）
 bash -n install.sh uninstall.sh bell/install.sh bell/uninstall.sh sessions/install.sh sessions/uninstall.sh sessions/track.sh sessions/notify.sh macos/AIUsageMonitor/Scripts/*.sh
@@ -54,15 +54,19 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 
 ## 架構重點
 
-**資料流**：Claude Code 每次刷新狀態列時，把一段 JSON 從 **stdin** 餵給此腳本，內含 `model.id`、`model.display_name`、`transcript_path`。腳本算出 context 用量百分比，將一行字串寫到 **stdout** 即為狀態列內容。
+**資料流**：Claude Code 每次刷新狀態列時，把一段 JSON 從 **stdin** 餵給此腳本，內含 `model.id`、`model.display_name`、`effort.level`（low / medium / high / xhigh / max，原樣顯示（濾除不可列印字元、上限 12 字元；無模型名稱時不顯示）在模型膠囊內，缺少或型別不符則省略）、`transcript_path`，以及 `context_window`（`context_window_size`、`used_percentage`、`current_usage`）與 `rate_limits`（`five_hour` / `seven_day` 的 `used_percentage`、`resets_at` unix 秒；API-key 使用者或舊版 CLI 沒有）。腳本算出 context 用量百分比，將一行字串寫到 **stdout** 即為狀態列內容。
 
 **核心邏輯（`ctx-statusline.py`）**：
 - `used_tokens()` 從 transcript（JSONL）**尾端往前**掃，找第一筆「非 sidechain 且含 `message.usage`」的記錄。已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`。
 - 效率：大型 transcript 只讀尾端 `TAIL_BYTES`（預設 2MB）；尾端找不到且檔案曾被截斷時，才整檔回掃（涵蓋「近期全是 sidechain」的邊界）。
 - 過濾 `isSidechain` 是刻意設計：只反映主 session 用量，與 Claude Code 內建 `/context` 的數字對齊。subagent 訊息不計入。
-- `context_limit()` 以 `model.id` 是否含 `1m` 或 Fable 5 判斷上限（1,000,000 vs 200,000）。
+- `resolve_limit()`：優先採 stdin `context_window.context_window_size`（正整數），否則退回 `context_limit()` 以 `model.id` 是否含 `1m` 或 Fable 5 判斷上限（1,000,000 vs 200,000）。
+- `resolve_used()`：優先採 stdin `context_window.current_usage`（公式同上，非 int 欄位算 0），其次 `used_percentage` 反推，最後才掃 transcript。
+- 外觀（"A 膠囊"）：`model_pill()` 依 id / display_name 的家族（fable/opus/sonnet/haiku，未知為灰）上底色；`context_bar()` 為 `BAR_WIDTH`(12) 格、八分之一格平滑，空白為暗軌道 `─`；區段以暗色 ` │ ` 分隔。
+- 色彩深度：調色盤全是頂部 `*_RGB` 常數；`fg()` / `bg()` 在 `COLORTERM` 為 `truecolor` / `24bit` 時輸出 24-bit SGR，否則以 `nearest_256()` 換成最接近的 xterm-256 索引。
+- `render_rate_limits()`：讀 stdin `rate_limits`，在 context 區段後附加 `5h 11% 2h41m │ 7d 14% 3d4h`（僅 `used_percentage` 為數字的視窗才顯示；倒數由 `format_countdown(resets_at, now)` 計算，`now` 可注入、不依賴時區，過去／無效則省略）。`_countdown_style()` 只在該視窗 `used_percentage >= WARN_PCT` 時依剩餘秒數上色（< SOON 亮青粗體、< NEAR 柔青，其餘暗色；用嚴格小於，使每個顯示字串只對應一種顏色），百分比的綠／黃／紅不變。沒有 `rate_limits` 時整段省略。注意這與原生 App 不同：狀態列只是顯示 Claude Code 自己餵進 stdin 的數字，不自行抓取，也不涵蓋 Codex / Antigravity。
 
-**永不崩潰原則（關鍵不變量）**：狀態列指令絕不能拋例外或噴錯，否則會污染使用者畫面。因此每層都有防線——檔案讀取、JSON parse、`main()` 外層 try/except 全部 fallback 到「0% / 空進度條」。修改時務必維持這個性質：新增邏輯要包在防護內，不要讓任何路徑能逸出未捕捉的例外。
+**永不崩潰原則（關鍵不變量）**：狀態列指令絕不能拋例外或噴錯，否則會污染使用者畫面。因此每層都有防線——檔案讀取、JSON parse、`main()` 外層 try/except 全部 fallback 到「0% / 空進度條」；最外層防線只輸出簡單純文字（`guard_line()`）。修改時務必維持這個性質：新增邏輯要包在防護內，不要讓任何路徑能逸出未捕捉的例外。
 
 **安裝腳本的合併策略**：`install.sh` / `uninstall.sh` 不依賴 `jq`，而是內嵌 `/usr/bin/python3` heredoc 來安全地讀寫 `~/.claude/settings.json`——只增刪 `statusLine` 一個 key，**保留其餘既有設定**，且改動前一律備份成 `settings.json.bak.<timestamp>`。若 settings.json 不是合法 JSON 則中止不動。
 
@@ -92,6 +96,6 @@ cd macos/AIUsageMonitor && ./Scripts/build-app.sh && open .build/AIUsageMonitor.
 ## 慣例
 
 - 目標執行環境是 macOS 系統內建的 `/usr/bin/python3`（免額外安裝）；避免引入第三方套件或非標準庫相依。測試亦只用標準庫 `unittest`。
-- 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)、`TAIL_BYTES`(尾端讀取量)。
+- 可調參數集中在 `ctx-statusline.py` 頂部常數：`BAR_WIDTH`、`WARN_PCT`(轉黃)、`CRIT_PCT`(轉紅)、`TAIL_BYTES`(尾端讀取量)，以及調色盤 `OK_RGB` / `WARN_RGB` / `CRIT_RGB` / `TRACK_RGB` / `INK_RGB` / `CYAN_BRIGHT_RGB` / `CYAN_SOFT_RGB` / 各模型家族 `*_RGB`，以及倒數強調門檻 `RELEASE_SOON_5H` / `RELEASE_NEAR_5H` / `RELEASE_SOON_7D` / `RELEASE_NEAR_7D`（秒）。
 - 文件採中英雙語：每處 `README.md`（繁中為主）都搭一份 `README.en.md`（英文）並同步更新——含頂層、`macos/AIUsageMonitor/`、`bell/` 與 `sessions/`。頂層 README 為四工具總覽，細節連到各子目錄 README。變更記於 `CHANGELOG.md`，貢獻規範見 `CONTRIBUTING.md`。
 - 安裝/移除腳本支援 `CLAUDE_CONFIG_DIR` 覆寫設定目錄（預設 `~/.claude`）。

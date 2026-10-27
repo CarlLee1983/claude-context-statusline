@@ -39,4 +39,4 @@ echo "==> 設定 statusLine / configuring statusLine: $SETTINGS"
 echo
 echo "✅ 安裝完成。請重新開啟一個 Claude Code session 即可在底部看到："
 echo "✅ Done. Open a new Claude Code session to see it at the bottom:"
-echo "   Opus 4.8 · [████░░░░░░] 39% · 78k/200k"
+echo "    Opus 4.8 · medium  ████▋─────── 39% 78k/200k │ 5h 11% 2h41m │ 7d 14% 3d4h"

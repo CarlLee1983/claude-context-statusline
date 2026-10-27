@@ -50,12 +50,16 @@ Each formula can be installed independently.
 A persistent statusline for [Claude Code](https://docs.anthropic.com/en/docs/claude-code) that shows how much of the current session's context window is in use — see at a glance how much room is left.
 
 ```
-Opus 4.8 · [████░░░░░░] 39% · 78k/200k
+Opus 4.8 · medium  ████▋─────── 39% 78k/200k │ 5h 11% 2h41m │ 7d 14% 3d4h
 ```
 
-- **Model name** (dimmed) · **colored bar** · **used % · used/limit tokens**
+(Plain text shown above; on screen the model name sits on a family-colored background, forming the pill.)
+
+- **Model pill** (background by Fable / Opus / Sonnet / Haiku family, gray when unknown; the effort level Claude Code sends is shown inside the pill as `· medium`, displayed as given and omitted when absent or when there is no model name) · **12-cell smooth bar** (eighth-block precision) · **used % · used/limit tokens**
 - Alert colors: green `<70%`, yellow `70–85%`, red `≥85%`
-- Context limit auto-detected: `model.id` containing `1m` → 1,000,000, otherwise 200,000
+- Context limit comes from the `context_window_size` Claude Code sends; only if absent is it inferred from `model.id` (containing `1m` → 1,000,000, otherwise 200,000)
+- Used tokens come from the `current_usage` Claude Code sends; otherwise derived from `used_percentage`, and only then the transcript is scanned
+- When subscription rate-limit data is present, appends `5h 11% 2h41m │ 7d 14% 3d4h` after a `│` separator (percentages use the same green/yellow/red colors, followed by a countdown to reset; the countdown is omitted when the reset time is past or invalid); once that window is at ≥ 70% usage, the countdown is tinted as the quota is about to free up: bright cyan bold under 30 min (5h) / 6 h (7d), soft cyan under 1 h (5h) / 1 day (7d), otherwise dim; hidden for API-key users or older CLIs that don't send it
 - Reflects the main session only (filters out subagent / sidechain messages, matching `/context`)
 - Pure standard library, single file, zero dependencies; no error ever breaks the statusline
 
@@ -104,7 +108,7 @@ Edit the constants at the top of `~/.claude/hooks/ctx-statusline.py`:
 
 | Constant | Default | Meaning |
 |----------|---------|---------|
-| `BAR_WIDTH` | `10` | Progress bar width (characters) |
+| `BAR_WIDTH` | `12` | Progress bar width (characters) |
 | `WARN_PCT` | `70` | Turn yellow at/above this % |
 | `CRIT_PCT` | `85` | Turn red at/above this % |
 | `TAIL_BYTES` | `2_000_000` | Trailing bytes read for large transcripts |

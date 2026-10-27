@@ -9,9 +9,11 @@ import importlib.util
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 from contextlib import redirect_stdout
+from unittest import mock
 
 # 腳本名含連字號，無法用一般 import，改用 importlib 依路徑載入。
 # The script name has a hyphen, so load it by path with importlib.
@@ -110,6 +112,17 @@ class UsedTokensTest(unittest.TestCase):
         finally:
             os.remove(path)
 
+    def test_negative_and_garbage_usage_count_zero(self):
+        path = _write_transcript([_record(-5000)])
+        bad = _write_transcript([json.dumps(
+            {"message": {"usage": {"input_tokens": "x", "cache_read_input_tokens": 7}}})])
+        try:
+            self.assertEqual(ctx.used_tokens(path), 0)
+            self.assertEqual(ctx.used_tokens(bad), 7)
+        finally:
+            os.remove(path)
+            os.remove(bad)
+
     def test_no_usage_returns_zero(self):
         path = _write_transcript([json.dumps({"message": {"role": "user"}})])
         try:
@@ -140,30 +153,492 @@ class UsedTokensTest(unittest.TestCase):
             os.remove(path)
 
 
-class RenderTest(unittest.TestCase):
-    def test_color_thresholds(self):
-        self.assertIn(ctx.GREEN, ctx.render(10, 20_000, 200_000, "M"))
-        self.assertIn(ctx.YELLOW, ctx.render(75, 150_000, 200_000, "M"))
-        self.assertIn(ctx.RED, ctx.render(90, 180_000, 200_000, "M"))
-
-    def test_bar_width_and_fill(self):
-        out = ctx.render(50, 100_000, 200_000, "M")
-        self.assertEqual(out.count("█") + out.count("░"), ctx.BAR_WIDTH)
-        self.assertEqual(out.count("█"), 5)
-
-    def test_includes_model_name_and_tokens(self):
-        out = ctx.render(39, 78_000, 200_000, "Opus 4.8")
-        self.assertIn("Opus 4.8", out)
-        self.assertIn("39%", out)
-        self.assertIn("78k/200k", out)
-
-    def test_empty_model_name_omits_prefix(self):
-        out = ctx.render(10, 20_000, 200_000, "")
-        self.assertNotIn("·", out.split("%")[0].replace("/", ""))
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
-class MainTest(unittest.TestCase):
-    def _run_main(self, stdin_text, monkey_stdin=True):
+def _plain(text):
+    """去掉 ANSI SGR 序列，只留可見文字。 Strip ANSI SGR sequences."""
+    return _ANSI.sub("", text)
+
+
+class _TruecolorMixin:
+    """把 COLORTERM 固定成 truecolor，測試後還原。
+
+    Pin COLORTERM=truecolor for the test and restore it afterwards.
+    """
+
+    colorterm = "truecolor"
+
+    def setUp(self):
+        super().setUp()
+        patcher = mock.patch.dict(os.environ)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        if self.colorterm is None:
+            os.environ.pop("COLORTERM", None)
+        else:
+            os.environ["COLORTERM"] = self.colorterm
+
+
+FULL_PAYLOAD = {
+    "model": {"id": "claude-opus-5-5", "display_name": "Opus 5.5"},
+    "transcript_path": "/nonexistent/transcript.jsonl",
+    "context_window": {
+        "total_input_tokens": 229005,
+        "total_output_tokens": 139,
+        "context_window_size": 1000000,
+        "used_percentage": 23,
+        "remaining_percentage": 77,
+        "current_usage": {
+            "input_tokens": 5,
+            "cache_read_input_tokens": 200_000,
+            "cache_creation_input_tokens": 29_000,
+            "output_tokens": 139,
+        },
+    },
+    "rate_limits": {
+        "five_hour": {"used_percentage": 11, "resets_at": 1793091600},
+        "seven_day": {"used_percentage": 14, "resets_at": 1793383200},
+    },
+}
+
+
+class ResolveLimitTest(unittest.TestCase):
+    def test_payload_size_overrides_heuristic(self):
+        cw = {"context_window_size": 1_000_000}
+        self.assertEqual(ctx.resolve_limit(cw, "claude-opus-5-5"), 1_000_000)
+
+    def test_fallback_when_missing_or_garbage(self):
+        for cw in (None, {}, {"context_window_size": 0}, {"context_window_size": -5},
+                   {"context_window_size": "1000000"}, {"context_window_size": True},
+                   {"context_window_size": 1.5}, "x"):
+            self.assertEqual(ctx.resolve_limit(cw, "claude-opus-4-8"), 200_000)
+            self.assertEqual(ctx.resolve_limit(cw, "fable-5"), 1_000_000)
+
+
+class ResolveUsedTest(unittest.TestCase):
+    def test_current_usage_beats_transcript(self):
+        path = _write_transcript([_record(999)])
+        try:
+            cw = {"current_usage": {"input_tokens": 1, "cache_read_input_tokens": 2,
+                                    "cache_creation_input_tokens": 3}}
+            self.assertEqual(ctx.resolve_used(cw, path, 200_000), 6)
+        finally:
+            os.remove(path)
+
+    def test_garbage_fields_count_zero(self):
+        cw = {"current_usage": {"input_tokens": "x", "cache_read_input_tokens": None,
+                                "cache_creation_input_tokens": 7}}
+        self.assertEqual(ctx.resolve_used(cw, None, 200_000), 7)
+
+    def test_fallback_to_transcript(self):
+        path = _write_transcript([_record(1234)])
+        try:
+            for cw in (None, {}, {"current_usage": "bad"}, {"current_usage": None}):
+                self.assertEqual(ctx.resolve_used(cw, path, 200_000), 1234)
+        finally:
+            os.remove(path)
+
+    def test_used_percentage_when_no_current_usage(self):
+        self.assertEqual(ctx.resolve_used({"used_percentage": 25}, None, 200_000), 50_000)
+
+    def test_current_usage_wins_over_used_percentage(self):
+        cw = {"used_percentage": 99, "current_usage": {"input_tokens": 1_000}}
+        self.assertEqual(ctx.resolve_used(cw, None, 200_000), 1_000)
+
+    def test_negative_fields_count_zero(self):
+        cw = {"current_usage": {"input_tokens": -5_000, "cache_read_input_tokens": 3}}
+        self.assertEqual(ctx.resolve_used(cw, None, 200_000), 3)
+
+    def test_overflow_inputs_clamped_to_limit(self):
+        self.assertEqual(
+            ctx.resolve_used({"used_percentage": 1e308}, None, 200_000), 200_000)
+        self.assertEqual(
+            ctx.resolve_used({"used_percentage": 10 ** 400}, None, 200_000), 200_000)
+        cw = {"current_usage": {"input_tokens": 10 ** 400}}
+        self.assertEqual(ctx.resolve_used(cw, None, 200_000), 200_000)
+
+    def test_negative_overflow_used_percentage_is_zero(self):
+        self.assertEqual(
+            ctx.resolve_used({"used_percentage": -1e308}, None, 1000), 0)
+        self.assertEqual(
+            ctx.resolve_used({"used_percentage": -(10 ** 400)}, None, 1000), 0)
+
+    def test_transcript_usage_clamped_to_limit(self):
+        path = _write_transcript([_record(10 ** 6)])
+        try:
+            self.assertEqual(ctx.resolve_used(None, path, 1000), 1000)
+        finally:
+            os.remove(path)
+
+    def test_used_percentage_clamped(self):
+        self.assertEqual(ctx.resolve_used({"used_percentage": 500}, None, 1000), 1000)
+        self.assertEqual(ctx.resolve_used({"used_percentage": -5}, None, 1000), 0)
+
+    def test_used_percentage_ignored_when_not_number(self):
+        self.assertEqual(ctx.resolve_used({"used_percentage": "25"}, None, 200_000), 0)
+        self.assertEqual(ctx.resolve_used({"used_percentage": True}, None, 200_000), 0)
+
+
+class ColorDepthTest(_TruecolorMixin, unittest.TestCase):
+    def test_truecolor_and_24bit_use_24bit_sgr(self):
+        for value in ("truecolor", "24bit", "TrueColor"):
+            os.environ["COLORTERM"] = value
+            self.assertEqual(ctx.fg((1, 2, 3)), "\033[38;2;1;2;3m")
+            self.assertEqual(ctx.bg((1, 2, 3)), "\033[48;2;1;2;3m")
+
+    def test_other_values_use_256(self):
+        for value in (None, "", "yes"):
+            if value is None:
+                os.environ.pop("COLORTERM", None)
+            else:
+                os.environ["COLORTERM"] = value
+            self.assertTrue(ctx.fg((232, 141, 103)).startswith("\033[38;5;"))
+            self.assertTrue(ctx.bg((232, 141, 103)).startswith("\033[48;5;"))
+
+    def test_nearest_256_index(self):
+        self.assertEqual(ctx.nearest_256((255, 255, 255)), 231)
+        self.assertEqual(ctx.nearest_256((0, 0, 0)), 16)
+        self.assertEqual(ctx.nearest_256((255, 0, 0)), 196)
+        # 近灰色走灰階斜坡 232..255 / near-grays use the grayscale ramp
+        self.assertTrue(232 <= ctx.nearest_256((70, 70, 80)) <= 255)
+        for rgb, index in ((ctx.TRACK_RGB, 239), (ctx.OPUS_RGB, 173),
+                           (ctx.SONNET_RGB, 74), (ctx.FABLE_RGB, 141),
+                           (ctx.NEUTRAL_RGB, 247)):
+            self.assertEqual(ctx.nearest_256(rgb), index)
+
+
+class ModelPillTest(_TruecolorMixin, unittest.TestCase):
+    def test_family_colors(self):
+        for name, rgb in (("Fable 5", ctx.FABLE_RGB), ("Opus 5.5", ctx.OPUS_RGB),
+                          ("Sonnet 5.5", ctx.SONNET_RGB), ("Haiku 5.5", ctx.HAIKU_RGB)):
+            pill = ctx.model_pill("", name)
+            self.assertIn(ctx.bg(rgb), pill)
+            self.assertIn(ctx.fg(ctx.INK_RGB), pill)
+            self.assertIn(ctx.BOLD, pill)
+            self.assertEqual(_plain(pill), " " + name + " ")
+
+    def test_family_detected_from_id_case_insensitively(self):
+        self.assertIn(ctx.bg(ctx.OPUS_RGB), ctx.model_pill("CLAUDE-OPUS-5-5", "Custom"))
+        self.assertIn(ctx.bg(ctx.SONNET_RGB), ctx.model_pill("claude-sonnet-5-5", "x"))
+
+    def test_unknown_family_is_neutral_gray(self):
+        self.assertIn(ctx.bg(ctx.NEUTRAL_RGB), ctx.model_pill("gpt-x", "Mystery"))
+
+    def test_effort_inside_pill_keeps_background(self):
+        pill = ctx.model_pill("claude-opus-5-5", "Opus 5.5", "medium")
+        self.assertEqual(_plain(pill), " Opus 5.5 \u00b7 medium ")
+        self.assertEqual(pill, (
+            ctx.bg(ctx.OPUS_RGB) + ctx.fg(ctx.INK_RGB) + ctx.BOLD
+            + " Opus 5.5" + ctx.UNBOLD + " \u00b7 medium " + ctx.RESET))
+        # 名稱與 effort 之間只關粗體（SGR 22），不 reset，底色得以延續
+        # Only bold is turned off between name and effort; no reset, so the
+        # background persists.
+        self.assertEqual(ctx.UNBOLD, "\033[22m")
+        between = pill.split("Opus 5.5")[1].split("medium")[0]
+        self.assertNotIn(ctx.RESET, between)
+
+    def test_effort_absent_leaves_pill_unchanged(self):
+        self.assertEqual(ctx.model_pill("claude-opus-5-5", "Opus 5.5", ""),
+                         ctx.model_pill("claude-opus-5-5", "Opus 5.5"))
+        self.assertNotIn(ctx.UNBOLD, ctx.model_pill("claude-opus-5-5", "Opus 5.5"))
+
+    def test_effort_shown_on_unknown_family(self):
+        pill = ctx.model_pill("gpt-x", "Mystery", "xhigh")
+        self.assertIn(ctx.bg(ctx.NEUTRAL_RGB), pill)
+        self.assertEqual(_plain(pill), " Mystery \u00b7 xhigh ")
+
+    def test_effort_displayed_as_given(self):
+        self.assertEqual(_plain(ctx.model_pill("", "M", "weird-Level")),
+                         " M \u00b7 weird-Level ")
+
+    def test_effort_without_model_name_has_no_pill(self):
+        self.assertEqual(ctx.model_pill("claude-opus-5-5", "", "medium"), "")
+
+    def test_empty_name_has_no_pill(self):
+        self.assertEqual(ctx.model_pill("claude-opus-5-5", ""), "")
+
+
+class EffortLevelTest(unittest.TestCase):
+    def test_valid_levels(self):
+        for level in ("low", "medium", "high", "xhigh", "max"):
+            self.assertEqual(ctx.effort_level({"level": level}), level)
+
+    def test_stripped(self):
+        self.assertEqual(ctx.effort_level({"level": "  high \n"}), "high")
+
+    def test_wrong_types_omitted(self):
+        for value in (None, "medium", ["medium"], 5, True, {}, {"level": ""},
+                      {"level": "   "}, {"level": 5}, {"level": ["x"]},
+                      {"level": None}, {"other": "high"}):
+            self.assertEqual(ctx.effort_level(value), "")
+
+    def test_long_string_truncated(self):
+        out = ctx.effort_level({"level": "x" * 50})
+        self.assertEqual(out, "x" * ctx.MAX_EFFORT_CHARS)
+
+    def test_truncation_leaves_no_trailing_space(self):
+        self.assertEqual(ctx.effort_level({"level": "abcdefghijk  z"}), "abcdefghijk")
+
+    def test_c1_bidi_and_surrogate_removed(self):
+        for raw, expected in (("\u009b31mhigh", "31mhigh"),
+                              ("hi\u202egh", "high"),
+                              ("\ud800high", "high")):
+            self.assertEqual(ctx.effort_level({"level": raw}), expected)
+
+    def test_control_characters_removed(self):
+        self.assertEqual(ctx.effort_level({"level": "hi\x1b[31mgh"}), "hi[31mgh")
+
+
+class SanitizeTest(unittest.TestCase):
+    def test_removes_escape_surrogate_bidi_c1(self):
+        self.assertEqual(ctx._sanitize("a\x1b[31mb\ud800c\u202ed\u009be", 40), "a[31mbcde")
+
+    def test_strips_and_caps_without_trailing_space(self):
+        self.assertEqual(ctx._sanitize("  abc  def ", 4), "abc")
+        self.assertEqual(ctx._sanitize("x" * 100, 40), "x" * 40)
+
+
+class ContextBarTest(_TruecolorMixin, unittest.TestCase):
+    def test_width_is_constant(self):
+        for pct in (0, 1, 23, 50, 99, 100):
+            self.assertEqual(len(_plain(ctx.context_bar(pct))), ctx.BAR_WIDTH)
+        self.assertEqual(ctx.BAR_WIDTH, 12)
+
+    def test_eighth_block_smoothing(self):
+        self.assertEqual(_plain(ctx.context_bar(23)), "██\u258a" + "\u2500" * 9)
+        self.assertEqual(_plain(ctx.context_bar(0)), "\u2500" * 12)
+        self.assertEqual(_plain(ctx.context_bar(100)), "\u2588" * 12)
+        self.assertEqual(_plain(ctx.context_bar(50)), "\u2588" * 6 + "\u2500" * 6)
+
+    def test_level_colors_and_track(self):
+        self.assertIn(ctx.fg(ctx.OK_RGB), ctx.context_bar(10))
+        self.assertIn(ctx.fg(ctx.WARN_RGB), ctx.context_bar(75))
+        self.assertIn(ctx.fg(ctx.CRIT_RGB), ctx.context_bar(90))
+        self.assertIn(ctx.fg(ctx.TRACK_RGB), ctx.context_bar(10))
+
+
+class RenderTest(_TruecolorMixin, unittest.TestCase):
+    def test_layout_without_rate_limits(self):
+        out = ctx.render(23, 229_005, 1_000_000, "Opus 5.5", model_id="claude-opus-5-5")
+        self.assertEqual(_plain(out), " Opus 5.5  ██\u258a" + "\u2500" * 9 + " 23% 229k/1m")
+
+    def test_pct_uses_level_color_and_usage_is_dim(self):
+        out = ctx.render(75, 150_000, 200_000, "M")
+        self.assertIn(ctx.fg(ctx.WARN_RGB) + "75%", out)
+        self.assertIn(ctx.DIM + "150k/200k", out)
+
+    def test_effort_passed_into_pill(self):
+        out = ctx.render(23, 229_005, 1_000_000, "Opus 5.5", model_id="claude-opus-5-5",
+                         effort="medium")
+        self.assertEqual(
+            _plain(out), " Opus 5.5 \u00b7 medium  ██\u258a" + "\u2500" * 9 + " 23% 229k/1m")
+
+    def test_extra_appended_with_dim_pipe_separator(self):
+        base = ctx.render(10, 20_000, 200_000, "M")
+        out = ctx.render(10, 20_000, 200_000, "M", "EXTRA")
+        self.assertEqual(out, base + ctx.DIM + " \u2502 " + ctx.RESET + "EXTRA")
+
+    def test_empty_model_name_omits_pill(self):
+        out = _plain(ctx.render(10, 20_000, 200_000, ""))
+        self.assertTrue(out.startswith("\u2588"))
+
+
+class CountdownTest(unittest.TestCase):
+    NOW = 1_000_000.0
+
+    def cd(self, delta):
+        return ctx.format_countdown(self.NOW + delta, self.NOW)
+
+    def test_minutes(self):
+        self.assertEqual(self.cd(12 * 60), "12m")
+        self.assertEqual(self.cd(59 * 60 + 59), "59m")
+        self.assertEqual(self.cd(5), "1m")
+
+    def test_hours_zero_padded_minutes(self):
+        self.assertEqual(self.cd(2 * 3600 + 41 * 60), "2h41m")
+        self.assertEqual(self.cd(4 * 3600 + 5 * 60), "4h05m")
+        self.assertEqual(self.cd(3600), "1h00m")
+        self.assertEqual(self.cd(23 * 3600 + 59 * 60), "23h59m")
+
+    def test_days(self):
+        self.assertEqual(self.cd(3 * 86400 + 4 * 3600), "3d4h")
+        self.assertEqual(self.cd(5 * 86400), "5d")
+        self.assertEqual(self.cd(86400), "1d")
+
+    def test_huge_int_does_not_raise(self):
+        self.assertEqual(ctx.format_countdown(10 ** 400, self.NOW), "")
+        self.assertEqual(ctx.format_countdown(-(10 ** 400), self.NOW), "")
+
+    def test_past_or_invalid_omitted(self):
+        for v in (self.NOW, self.NOW - 10, None, "x", True, float("nan"),
+                  float("inf"), 1e308, 10 ** 400, -1):
+            self.assertEqual(ctx.format_countdown(v, self.NOW), "")
+
+
+class RateLimitTest(_TruecolorMixin, unittest.TestCase):
+    NOW = 1_000_000.0
+
+    def rl(self, value):
+        return ctx.render_rate_limits(value, self.NOW)
+
+    def test_absent_returns_empty(self):
+        for value in (None, {}, "x", {"five_hour": "x"}, {"five_hour": {}}):
+            self.assertEqual(self.rl(value), "")
+
+    def test_both_windows_format(self):
+        out = self.rl({
+            "five_hour": {"used_percentage": 11, "resets_at": self.NOW + 9660},
+            "seven_day": {"used_percentage": 14, "resets_at": self.NOW + 3 * 86400 + 4 * 3600},
+        })
+        self.assertEqual(_plain(out), "5h 11% 2h41m \u2502 7d 14% 3d4h")
+        self.assertIn(ctx.DIM + "5h", out)
+        self.assertIn(ctx.fg(ctx.OK_RGB) + "11%", out)
+        self.assertIn(ctx.DIM + "2h41m", out)
+
+    def test_partial_only_seven_day_and_no_countdown(self):
+        out = self.rl({"seven_day": {"used_percentage": 90}})
+        self.assertEqual(_plain(out), "7d 90%")
+        self.assertIn(ctx.fg(ctx.CRIT_RGB) + "90%", out)
+
+    def test_past_reset_omits_countdown(self):
+        out = self.rl({"five_hour": {"used_percentage": 10, "resets_at": self.NOW - 5}})
+        self.assertEqual(_plain(out), "5h 10%")
+
+    def test_colors_by_threshold(self):
+        out = self.rl({"five_hour": {"used_percentage": 75}})
+        self.assertIn(ctx.fg(ctx.WARN_RGB) + "75%", out)
+
+    def test_percentage_clamped_to_0_100(self):
+        out = _plain(self.rl({
+            "five_hour": {"used_percentage": 250},
+            "seven_day": {"used_percentage": -20},
+        }))
+        self.assertEqual(out, "5h 100% \u2502 7d 0%")
+
+    def test_huge_percentage_does_not_raise(self):
+        for v in (1e308, 10 ** 400):
+            out = self.rl({"five_hour": {"used_percentage": v}})
+            self.assertEqual(_plain(out), "5h 100%")
+
+    def test_non_number_percentage_skipped(self):
+        self.assertEqual(self.rl({"five_hour": {"used_percentage": "11"}}), "")
+
+    def test_now_defaults_to_wall_clock(self):
+        with mock.patch.object(ctx.time, "time", return_value=self.NOW):
+            out = ctx.render_rate_limits(
+                {"five_hour": {"used_percentage": 1, "resets_at": self.NOW + 600}})
+        self.assertEqual(_plain(out), "5h 1% 10m")
+
+
+class CountdownColorTest(_TruecolorMixin, unittest.TestCase):
+    NOW = 1_000_000.0
+    BRIGHT = ctx.fg(ctx.CYAN_BRIGHT_RGB) + ctx.BOLD
+    SOFT = ctx.fg(ctx.CYAN_SOFT_RGB)
+
+    def segment(self, key, pct, remaining):
+        out = ctx.render_rate_limits(
+            {key: {"used_percentage": pct, "resets_at": self.NOW + remaining}}, self.NOW)
+        return out.split("%" + ctx.RESET + " ", 1)[1]
+
+    def style(self, key, pct, remaining):
+        seg = self.segment(key, pct, remaining)
+        if seg.startswith(self.BRIGHT):
+            return "bright"
+        if seg.startswith(self.SOFT):
+            return "soft"
+        self.assertTrue(seg.startswith(ctx.DIM), seg)
+        return "dim"
+
+    def test_constants_and_palette(self):
+        self.assertEqual(
+            (ctx.RELEASE_SOON_5H, ctx.RELEASE_NEAR_5H,
+             ctx.RELEASE_SOON_7D, ctx.RELEASE_NEAR_7D),
+            (1800, 3600, 21600, 86400))
+        self.assertEqual(ctx.CYAN_BRIGHT_RGB, (80, 220, 230))
+        self.assertEqual(ctx.CYAN_SOFT_RGB, (120, 170, 180))
+        self.assertEqual(ctx.nearest_256(ctx.CYAN_BRIGHT_RGB), 80)
+        self.assertEqual(ctx.nearest_256(ctx.CYAN_SOFT_RGB), 109)
+
+    def test_five_hour_boundaries_gate_on(self):
+        for remaining, expected in ((1, "bright"), (1799.9, "bright"), (1800, "soft"),
+                                    (1859.9, "soft"), (3599.9, "soft"), (3600, "dim"),
+                                    (4 * 3600, "dim")):
+            self.assertEqual(self.style("five_hour", 92, remaining), expected, remaining)
+
+    def test_seven_day_boundaries_gate_on(self):
+        for remaining, expected in ((60, "bright"), (21599.9, "bright"), (21600, "soft"),
+                                    (86399.9, "soft"), (86400, "dim"), (89999, "dim"),
+                                    (5 * 86400, "dim")):
+            self.assertEqual(self.style("seven_day", 92, remaining), expected, remaining)
+
+    def test_usage_gate_uses_rounded_percentage(self):
+        self.assertEqual(self.style("five_hour", 69.5, 600), "bright")
+        self.assertEqual(self.style("five_hour", 69.4, 600), "dim")
+
+    def test_each_displayed_string_maps_to_exactly_one_style(self):
+        windows = (
+            ("five_hour", (ctx.RELEASE_SOON_5H, ctx.RELEASE_NEAR_5H)),
+            ("seven_day", (ctx.RELEASE_SOON_7D, ctx.RELEASE_NEAR_7D)),
+        )
+        for key, thresholds in windows:
+            seen = {}
+            for threshold in thresholds:
+                for step in range(-240, 241):
+                    remaining = threshold + step * 0.5
+                    if remaining <= 0:
+                        continue
+                    text = ctx.format_countdown(self.NOW + remaining, self.NOW)
+                    seen.setdefault(text, set()).add(self.style(key, 92, remaining))
+            for text, styles in seen.items():
+                self.assertEqual(len(styles), 1, (key, text, styles))
+
+    def test_gate_boundary_at_warn_pct(self):
+        self.assertEqual(self.style("five_hour", ctx.WARN_PCT, 600), "bright")
+        self.assertEqual(self.style("five_hour", ctx.WARN_PCT - 1, 600), "dim")
+        self.assertEqual(self.style("seven_day", ctx.WARN_PCT, 600), "bright")
+        self.assertEqual(self.style("seven_day", ctx.WARN_PCT - 1, 600), "dim")
+
+    def test_gate_off_is_dim_everywhere(self):
+        for key, remaining in (("five_hour", 600), ("five_hour", 3000),
+                               ("seven_day", 3600), ("seven_day", 50000)):
+            self.assertEqual(self.style(key, 11, remaining), "dim")
+
+    def test_exact_sgr(self):
+        hot = ctx.render_rate_limits(
+            {"five_hour": {"used_percentage": 92, "resets_at": self.NOW + 25 * 60}}, self.NOW)
+        self.assertEqual(hot, (
+            ctx.DIM + "5h" + ctx.RESET + " " + ctx.fg(ctx.CRIT_RGB) + "92%" + ctx.RESET
+            + " " + ctx.fg(ctx.CYAN_BRIGHT_RGB) + ctx.BOLD + "25m" + ctx.RESET))
+        cold = ctx.render_rate_limits(
+            {"five_hour": {"used_percentage": 11, "resets_at": self.NOW + 25 * 60}}, self.NOW)
+        self.assertEqual(cold, (
+            ctx.DIM + "5h" + ctx.RESET + " " + ctx.fg(ctx.OK_RGB) + "11%" + ctx.RESET
+            + " " + ctx.DIM + "25m" + ctx.RESET))
+
+    def test_percentage_color_unchanged(self):
+        seg = ctx.render_rate_limits(
+            {"five_hour": {"used_percentage": 75, "resets_at": self.NOW + 600}}, self.NOW)
+        self.assertIn(ctx.fg(ctx.WARN_RGB) + "75%", seg)
+
+    def test_invalid_resets_at_still_no_countdown(self):
+        for v in (None, "x", True, self.NOW - 5, float("nan"), 1e308, 10 ** 400):
+            out = ctx.render_rate_limits(
+                {"five_hour": {"used_percentage": 92, "resets_at": v}}, self.NOW)
+            self.assertEqual(_plain(out), "5h 92%", v)
+            self.assertNotIn(ctx.fg(ctx.CYAN_BRIGHT_RGB), out)
+
+    def test_256_color_indexes_in_output(self):
+        os.environ.pop("COLORTERM", None)
+        out = ctx.render_rate_limits(
+            {"five_hour": {"used_percentage": 92, "resets_at": self.NOW + 600},
+             "seven_day": {"used_percentage": 92, "resets_at": self.NOW + 80000}}, self.NOW)
+        self.assertIn("\033[38;5;80m", out)
+        self.assertIn("\033[38;5;109m", out)
+
+
+class MainTest(_TruecolorMixin, unittest.TestCase):
+    def _run_main(self, stdin_text):
         buf = io.StringIO()
         old_stdin = ctx.sys.stdin
         ctx.sys.stdin = io.StringIO(stdin_text)
@@ -181,15 +656,17 @@ class MainTest(unittest.TestCase):
                 "model": {"id": "claude-opus-4-8", "display_name": "Opus 4.8"},
                 "transcript_path": path,
             })
-            out = self._run_main(payload)
+            out = _plain(self._run_main(payload))
             self.assertIn("Opus 4.8", out)
             self.assertIn("39%", out)
+            self.assertIn("78k/200k", out)
         finally:
             os.remove(path)
 
     def test_main_with_bad_json_does_not_raise(self):
-        out = self._run_main("this is not json")
+        out = _plain(self._run_main("this is not json"))
         self.assertIn("0%", out)
+        self.assertIn("0/200k", out)
 
     def test_main_with_million_window(self):
         path = _write_transcript([_record(500_000)])
@@ -198,11 +675,150 @@ class MainTest(unittest.TestCase):
                 "model": {"id": "claude-opus-4-8[1m]", "display_name": "Opus 4.8"},
                 "transcript_path": path,
             })
-            out = self._run_main(payload)
+            out = _plain(self._run_main(payload))
             self.assertIn("50%", out)
             self.assertIn("500k/1m", out)
         finally:
             os.remove(path)
+
+    def test_main_full_payload(self):
+        now = 1793091600 - (2 * 3600 + 41 * 60)
+        with mock.patch.object(ctx.time, "time", return_value=now):
+            out = self._run_main(json.dumps(FULL_PAYLOAD))
+        self.assertEqual(
+            _plain(out),
+            " Opus 5.5  ██\u258a" + "\u2500" * 9
+            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h",
+        )
+        self.assertIn(ctx.bg(ctx.OPUS_RGB), out)
+
+    def test_main_countdown_highlight_end_to_end(self):
+        now = 1793091600 - 25 * 60
+        payload = json.loads(json.dumps(FULL_PAYLOAD))
+        payload["rate_limits"]["five_hour"]["used_percentage"] = 92
+        with mock.patch.object(ctx.time, "time", return_value=now):
+            out = self._run_main(json.dumps(payload))
+        self.assertIn(ctx.fg(ctx.CYAN_BRIGHT_RGB) + ctx.BOLD + "25m" + ctx.RESET, out)
+        # 7d 只有 14%，倒數維持暗色 / 7d is only 14%, so its countdown stays dim
+        self.assertIn(ctx.DIM + "3d", out)
+        self.assertNotIn(ctx.fg(ctx.CYAN_SOFT_RGB), out)
+
+    def test_main_effort_end_to_end(self):
+        payload = dict(FULL_PAYLOAD, effort={"level": "medium"})
+        now = 1793091600 - (2 * 3600 + 41 * 60)
+        with mock.patch.object(ctx.time, "time", return_value=now):
+            out = self._run_main(json.dumps(payload))
+        self.assertEqual(
+            _plain(out),
+            " Opus 5.5 \u00b7 medium  ██\u258a" + "\u2500" * 9
+            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h",
+        )
+        self.assertIn(ctx.UNBOLD, out)
+
+    def test_main_surrogate_effort_renders_not_guard(self):
+        out = _plain(self._run_main(json.dumps(
+            dict(FULL_PAYLOAD, effort={"level": "\ud800x"}))))
+        self.assertIn("\u00b7 x ", out)
+        self.assertNotEqual(out, ctx.guard_line())
+
+    def test_main_model_name_is_sanitized(self):
+        for name in ("Op\x1b[31mus", "Op\ud800us", "Op\u009b31mus"):
+            raw = self._run_main(json.dumps(
+                dict(FULL_PAYLOAD, model={"id": "claude-opus-5-5", "display_name": name})))
+            self.assertNotIn("\x1b[31m", raw)
+            self.assertNotIn("\u009b", raw)
+            self.assertIn("Op", _plain(raw))
+            self.assertIn("229k/1m", raw)
+
+    def test_main_long_model_name_truncated(self):
+        out = _plain(self._run_main(json.dumps(
+            dict(FULL_PAYLOAD, model={"id": "claude-opus-5-5", "display_name": "N" * 200}))))
+        self.assertIn(" " + "N" * 40 + " ", out)
+        self.assertNotIn("N" * 41, out)
+
+    def test_main_name_that_sanitizes_to_empty_falls_back_to_id(self):
+        out = _plain(self._run_main(json.dumps(
+            dict(FULL_PAYLOAD, model={"id": "claude-opus-5-5", "display_name": "\x1b\ud800"}))))
+        self.assertIn("claude-opus-5-5", out)
+
+    def test_main_garbage_effort_omitted(self):
+        for effort in ("medium", ["medium"], 5, {}, {"level": ""}, {"level": ["x"]}, None):
+            out = _plain(self._run_main(json.dumps(
+                dict(FULL_PAYLOAD, effort=effort))))
+            self.assertTrue(out.startswith(" Opus 5.5  "), out)
+            self.assertNotIn("\u00b7", out)
+
+    def test_main_256_color_fallback(self):
+        os.environ.pop("COLORTERM", None)
+        out = self._run_main(json.dumps(FULL_PAYLOAD))
+        self.assertNotIn("38;2;", out)
+        self.assertNotIn("48;2;", out)
+        self.assertIn("48;5;", out)
+
+    def test_main_current_usage_wins_over_used_percentage(self):
+        payload = json.loads(json.dumps(FULL_PAYLOAD))
+        payload["context_window"]["used_percentage"] = 99
+        out = _plain(self._run_main(json.dumps(payload)))
+        self.assertIn("23%", out)
+        self.assertNotIn("99%", out)
+
+    def test_main_overflow_inputs_render_without_outer_guard(self):
+        for cw in ({"current_usage": {"input_tokens": 10 ** 400}},
+                   {"used_percentage": 1e308},
+                   {"current_usage": {"input_tokens": -5_000}}):
+            out = _plain(self._run_main(json.dumps({
+                "model": {"id": "claude-opus-4-8", "display_name": "Opus"},
+                "context_window": cw,
+            })))
+            self.assertIn("Opus", out)
+            self.assertIn("/200k", out)
+            self.assertNotIn("-", out)
+
+    def test_main_huge_resets_at_keeps_full_line(self):
+        payload = json.loads(json.dumps(FULL_PAYLOAD))
+        payload["model"] = {"id": "claude-opus-4-8", "display_name": "Opus"}
+        del payload["context_window"]["context_window_size"]
+        raw = json.dumps(payload).replace("1793091600", "1" + "0" * 400)
+        out = _plain(self._run_main(raw))
+        self.assertIn("Opus", out)
+        self.assertIn("/200k", out)
+        self.assertIn("5h 11%", out)
+        self.assertNotEqual(out, ctx.guard_line())
+
+    def test_main_non_string_display_name_falls_back_to_id(self):
+        out = _plain(self._run_main(json.dumps({
+            "model": {"id": "claude-opus-4-8", "display_name": ["x"]}})))
+        self.assertIn("claude-opus-4-8", out)
+
+    def test_main_non_string_transcript_path_does_not_raise(self):
+        out = _plain(self._run_main(json.dumps({
+            "model": {"id": "claude-opus-4-8"}, "transcript_path": ["x"]})))
+        self.assertIn("0/200k", out)
+
+    def test_main_without_rate_limits_has_no_separator(self):
+        payload = dict(FULL_PAYLOAD)
+        del payload["rate_limits"]
+        out = self._run_main(json.dumps(payload))
+        self.assertEqual(out, ctx.render(
+            23, 229_005, 1_000_000, "Opus 5.5", model_id="claude-opus-5-5"))
+        self.assertNotIn("\u2502", out)
+
+    def test_main_garbage_new_fields_do_not_raise(self):
+        payload = {"model": {"id": 5, "display_name": ["x"]}, "context_window": [1],
+                   "rate_limits": {"five_hour": [], "seven_day": {"used_percentage": {}}}}
+        out = _plain(self._run_main(json.dumps(payload)))
+        self.assertIn("0%", out)
+        self.assertIn("0/200k", out)
+        payload["context_window"] = {"current_usage": {"input_tokens": 1e999}}
+        out = _plain(self._run_main(json.dumps(payload)))
+        self.assertIn("0/200k", out)
+
+
+class OuterGuardTest(unittest.TestCase):
+    def test_guard_line_is_plain_and_sane(self):
+        line = ctx.guard_line()
+        self.assertEqual(line, "\u2500" * ctx.BAR_WIDTH + " 0%")
+        self.assertNotIn("\033", line)
 
 
 if __name__ == "__main__":
