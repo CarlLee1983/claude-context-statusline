@@ -46,12 +46,16 @@ ai-usage-monitor         # 首次執行會把 App 裝到 ~/Applications 並啟�
 在 [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 的狀態列常駐顯示目前 session 的 context window 佔用程度，一眼掌握還剩多少空間。
 
 ```
-Opus 4.8 · [████░░░░░░] 39% · 78k/200k
+Opus 4.8 · medium  ████▋─────── 39% 78k/200k │ 5h 11% 2h41m │ 7d 14% 3d4h
 ```
 
-- **模型名**（淡色）· **彩色進度條** · **已用 % · 已用/上限 token**
+（上例為去色後的純文字；實際上模型名以家族色為底色，形成膠囊。）
+
+- **模型膠囊**（依 Fable / Opus / Sonnet / Haiku 家族上底色，未知家族為灰；膠囊內以 `· medium` 顯示 Claude Code 傳入的 effort 等級，原樣顯示；沒有該欄位或沒有模型名稱時省略）· **12 格平滑進度條**（八分之一格精度）· **已用 % · 已用/上限 token**
 - 警示色：綠 `<70%`、黃 `70–85%`、紅 `≥85%`
-- Context 上限自動判斷：`model.id` 含 `1m` → 1,000,000，否則 200,000
+- Context 上限優先採 Claude Code 傳入的 `context_window_size`；缺少時才依 `model.id` 判斷（含 `1m` → 1,000,000，否則 200,000）
+- 已用量優先採 Claude Code 傳入的 `current_usage`；缺少時依 `used_percentage` 反推，再缺少才掃描 transcript
+- 若有訂閱速率限制資料，於後方以 `│` 分隔附加 `5h 11% 2h41m │ 7d 14% 3d4h`（百分比同樣依綠／黃／紅著色，後面是距離重置的倒數；重置時間已過或無效則省略倒數）；該視窗用量 ≥ 70% 且快釋放時倒數會變色：5h 剩不到 30 分鐘／7d 剩不到 6 小時為亮青粗體，5h 剩不到 1 小時／7d 剩不到 1 天為柔青，其餘維持暗色；API-key 使用者或舊版 CLI 沒有此資料時不顯示
 - 只反映主 session 用量（過濾 subagent / sidechain 訊息，與 `/context` 一致）
 - 純標準庫、單檔、零相依；任何錯誤都不會中斷狀態列
 
@@ -86,7 +90,7 @@ cd claude-context-statusline
 
 ### 運作原理
 
-Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態列指令，內含 `model.id` 與 `transcript_path`。本腳本：
+Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態列指令，內含 `model.id`、`transcript_path`，新版另有 `context_window` 與 `rate_limits`（優先採用，缺少時才走以下 transcript 流程）。本腳本：
 
 1. 讀 `transcript_path`（JSONL），**從尾端往前**找第一筆非 sidechain 且含 `message.usage` 的記錄
 2. 已用 context = `input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
@@ -100,7 +104,7 @@ Claude Code 每次更新狀態列時，會把一段 JSON 從 stdin 餵給狀態�
 
 | 常數 | 預設 | 說明 |
 |------|------|------|
-| `BAR_WIDTH` | `10` | 進度條寬度（字元數） |
+| `BAR_WIDTH` | `12` | 進度條寬度（字元數） |
 | `WARN_PCT` | `70` | 達此 % 轉黃 |
 | `CRIT_PCT` | `85` | 達此 % 轉紅 |
 | `TAIL_BYTES` | `2_000_000` | 大型 transcript 只讀尾端的位元組數 |

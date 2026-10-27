@@ -9,6 +9,42 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Changed 變更
+- **ctx-statusline 外觀改為「A 膠囊」**：以家族色（Fable / Opus / Sonnet / Haiku，未知為灰）為底色的模型膠囊，
+  搭配 12 格八分之一格平滑進度條與暗色 `─` 軌道；額度顯示距離重置的倒數
+  （`5h 11% 2h41m │ 7d 14% 3d4h`）；區段以暗色 `│` 分隔。
+  `COLORTERM` 為 `truecolor` / `24bit` 時用 24-bit 色，否則自動降為 xterm-256。
+  **ctx-statusline restyled to the "A capsule" design**: a model pill with a family-colored background (Fable / Opus /
+  Sonnet / Haiku, gray when unknown), a 12-cell eighth-block smooth bar with a dim `─` track, and
+  rate limits shown as a countdown to reset (`5h 11% 2h41m │ 7d 14% 3d4h`); segments are separated by a dim `│`. Uses 24-bit color when `COLORTERM` is `truecolor` /
+  `24bit`, otherwise falls back to xterm-256.
+
+### Added 新增
+- **ctx-statusline 額度快釋放時倒數變色**：視窗用量 ≥ 70% 時，5h 剩不到 30 分鐘／7d 剩不到 6 小時以亮青粗體、
+  5h 剩不到 1 小時／7d 剩不到 1 天以柔青顯示倒數，其餘維持暗色；百分比著色不變。
+  **ctx-statusline tints the countdown when quota is about to free up**: once a window is at ≥ 70% usage,
+  its countdown is bright cyan bold under 30 min (5h) / 6 h (7d) and soft cyan under 1 h (5h) / 1 day
+  (7d), otherwise dim; percentage colors are unchanged.
+- **ctx-statusline 在模型膠囊內顯示 effort 等級**：讀取 Claude Code 由 stdin 傳入的 `effort.level`，
+  顯示為 `Opus 5.5 · medium`（原樣顯示，字數上限 12；欄位缺少或型別不符則省略）。
+  **ctx-statusline shows the effort level inside the model pill**: reads the `effort.level` Claude Code
+  passes on stdin and shows it as `Opus 5.5 · medium` (displayed as given, capped at 12 characters;
+  omitted when the field is missing or has the wrong type).
+- **ctx-statusline 顯示速率限制**：讀取 Claude Code 由 stdin 傳入的 `rate_limits`，在 context 區段後附加
+  `5h 11% 2h41m │ 7d 14% 3d4h`（百分比依綠／黃／紅著色，後面是距離重置的倒數）；沒有該資料時整段省略。
+  **ctx-statusline shows rate limits**: reads the `rate_limits` Claude Code passes on stdin and appends
+  `5h 11% 2h41m │ 7d 14% 3d4h` after the context segment (percentages in green/yellow/red, followed by
+  a countdown to reset); the segment is omitted when the data is absent.
+
+### Fixed 修正
+- **ctx-statusline 採用 Claude Code 提供的 context 資料**：優先使用 stdin 的
+  `context_window.context_window_size` 與 `current_usage`，修正 1M 視窗的 session（如 `claude-opus-5-5`）
+  被誤顯示為 `x/200k`；缺少時退回原有的 model id 啟發式與 transcript 掃描。
+  **ctx-statusline uses Claude Code's own context data**: prefers stdin
+  `context_window.context_window_size` and `current_usage`, fixing 1M-window sessions (e.g.
+  `claude-opus-5-5`) being shown as `x/200k`; falls back to the model-id heuristic and transcript scan
+  when absent.
+
 ## [0.4.2] - 2026-06-11
 
 ### Fixed 修正
