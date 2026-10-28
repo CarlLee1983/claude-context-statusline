@@ -9,6 +9,15 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Added 新增
+- **ctx-statusline 在 7d 視窗顯示「今天的目標上限」**：`7d 60% 3d2h →73%` 表示今天結束前把週用量控制在 73% 以內。
+  以當地時區今天 00:00 起算剩餘天數 `d`（至少 1），目標 = `基準 + (100 − 基準) / d`；基準為今天第一次顯示時的用量，
+  存於 `$XDG_CACHE_HOME/ctx-statusline/weekly-target.json`（或 `~/.cache/…`），換日或換視窗才重寫。用量達目標時改黃色。
+  **ctx-statusline shows "today's target" on the 7d window**: `7d 60% 3d2h →73%` means stay under 73% weekly usage by the end
+  of today. With `d` days left from local midnight (at least 1), target = `baseline + (100 − baseline) / d`, where the baseline is
+  the usage first shown today, kept in `$XDG_CACHE_HOME/ctx-statusline/weekly-target.json` (or `~/.cache/…`) and rewritten only
+  on a new day or window. Turns yellow once usage reaches the target.
+
 ## [0.5.0] - 2026-10-27
 
 ### Changed 變更

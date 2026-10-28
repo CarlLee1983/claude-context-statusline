@@ -24,6 +24,7 @@ a 0% display.
 import json
 import os
 import sys
+import tempfile
 import time
 from typing import Optional
 
@@ -72,6 +73,8 @@ RELEASE_SOON_7D = 6 * 3600
 RELEASE_NEAR_7D = 24 * 3600
 MAX_MODEL_CHARS = 40
 MAX_COUNTDOWN_SECONDS = 366 * 86400  # 超過視為無效 / beyond this is treated as invalid
+STATE_DIR = "ctx-statusline"  # 每日目標狀態檔 / daily-target state file location
+STATE_FILE = "weekly-target.json"
 WARN_PCT = 70   # >= 此值轉黃 / turn yellow at/above this
 CRIT_PCT = 85   # >= 此值轉紅 / turn red at/above this
 
@@ -418,10 +421,144 @@ def _countdown_style(pct: int, remaining: float, soon: int, near: int) -> str:
     return DIM
 
 
-def _rate_window(window, label: str, now: float, soon: int, near: int) -> str:
+def default_state_path() -> str:
+    """每日目標基準的狀態檔路徑：`$XDG_CACHE_HOME` 或 `~/.cache` 底下。
+
+    State file path for the daily-target baseline: under `$XDG_CACHE_HOME`,
+    else `~/.cache`.
+    """
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join("~", ".cache")
+    return os.path.join(os.path.expanduser(base), STATE_DIR, STATE_FILE)
+
+
+def _local_midnight(now: float) -> Optional[float]:
+    """當地時區今天 00:00 的 unix 秒數；時間超出系統範圍回傳 None。
+
+    Unix seconds of today's local midnight; None when out of the platform range.
+    """
+    try:
+        t = time.localtime(now)
+        return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _local_date(now: float) -> Optional[str]:
+    """當地日期 `YYYY-MM-DD`；無法換算回傳 None。
+
+    Local date as `YYYY-MM-DD`; None when it cannot be converted.
+    """
+    try:
+        return time.strftime("%Y-%m-%d", time.localtime(now))
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def _is_pct_int(v) -> bool:
+    """是否為 0–100 的 int（bool 不算）。 True for an int in 0..100 (bool excluded)."""
+    return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100
+
+
+def _read_baseline(path: str, window: int, date: str) -> Optional[int]:
+    """讀今天此視窗的基準百分比；檔案缺漏、損毀或不符回傳 None（檔案內容不可信）。
+
+    Read today's baseline for this window; None when the file is missing,
+    corrupt or for another window/day (its content is untrusted).
+    """
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    stored_window = data.get("window")
+    if (not isinstance(stored_window, int) or isinstance(stored_window, bool)
+            or stored_window != window or data.get("date") != date):
+        return None
+    baseline = data.get("baseline")
+    return baseline if _is_pct_int(baseline) else None
+
+
+def _write_baseline(path: str, window: int, date: str, baseline: int) -> None:
+    """原子寫入狀態檔（同目錄暫存檔 + os.replace）；失敗時靜默放棄。
+
+    Atomically write the state file (temp file in the same dir + os.replace);
+    silently gives up on failure.
+    """
+    tmp = None
+    try:
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
+        fd, tmp = tempfile.mkstemp(dir=directory, prefix=".weekly-target-")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump({"window": window, "date": date, "baseline": baseline}, f)
+        os.replace(tmp, path)
+        tmp = None
+    except (OSError, ValueError, TypeError):
+        pass
+    finally:
+        if tmp is not None:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+
+def _weekly_baseline(pct: int, resets_at, now: float, state_path: Optional[str]) -> int:
+    """今天第一次看到的 7d 用量；僅在換日、換視窗或用量倒退時重寫狀態檔。
+
+    The 7d usage first seen today; the state file is rewritten only on a new
+    day, a new window, or when usage went backwards. Falls back to ``pct``.
+    """
+    if state_path is None:
+        return pct
+    date = _local_date(now)
+    if date is None:
+        return pct
+    window = int(round(resets_at / 3600.0)) * 3600
+    stored = _read_baseline(state_path, window, date)
+    if stored is not None and stored <= pct:
+        return stored
+    _write_baseline(state_path, window, date, pct)
+    return pct
+
+
+def daily_target(pct: int, resets_at, now: float, state_path: Optional[str]) -> Optional[int]:
+    """今天結束前的 7d 用量目標上限（%）；時間無法換算回傳 None。
+
+    The 7d usage cap to stop at by the end of today (%); None when the time
+    cannot be converted. Days left count from local midnight, clamped to >= 1.
+    """
+    midnight = _local_midnight(now)
+    if midnight is None:
+        return None
+    try:
+        days = max(1.0, (resets_at - midnight) / 86400.0)
+        baseline = _weekly_baseline(pct, resets_at, now, state_path)
+        return min(100, round(baseline + (100 - baseline) / days))
+    except (OverflowError, ValueError):
+        return None
+
+
+def _target_text(pct: int, resets_at, now: float, state_path: Optional[str]) -> str:
+    """` →73%`：用量未達目標為暗色，已達（今日額度用完）改警示黃。
+
+    ` →73%`: dim while under target, warn color once today's budget is spent.
+    """
+    target = daily_target(pct, resets_at, now, state_path)
+    if target is None:
+        return ""
+    style = fg(WARN_RGB) if pct >= target else DIM
+    return " {}\u2192{}%{}".format(style, target, RESET)
+
+
+def _rate_window(window, label: str, now: float, soon: int, near: int,
+                 state_path: Optional[str] = None, daily: bool = False) -> str:
     """單一速率限制視窗的片段；used_percentage 非數字則回傳空字串。
 
     One rate-limit window segment; "" unless used_percentage is a number.
+    ``daily`` appends the "today's target" (7d window only).
     """
     if not isinstance(window, dict) or not _is_number(window.get("used_percentage")):
         return ""
@@ -434,14 +571,18 @@ def _rate_window(window, label: str, now: float, soon: int, near: int) -> str:
     if remaining is not None:
         style = _countdown_style(pct, remaining, soon, near)
         text += " {}{}{}".format(style, _format_remaining(remaining), RESET)
+        if daily:
+            text += _target_text(pct, window["resets_at"], now, state_path)
     return text
 
 
-def render_rate_limits(rate_limits, now: Optional[float] = None) -> str:
-    """組出 `5h 11% 2h41m │ 7d 14% 3d4h`；沒有任何視窗時回傳空字串。
+def render_rate_limits(rate_limits, now: Optional[float] = None,
+                       state_path: Optional[str] = None) -> str:
+    """組出 `5h 11% 2h41m │ 7d 14% 3d4h →17%`；沒有任何視窗時回傳空字串。
 
-    Build `5h 11% 2h41m │ 7d 14% 3d4h`; "" when no window is usable. ``now``
-    (unix seconds) is injectable for tests.
+    Build `5h 11% 2h41m │ 7d 14% 3d4h →17%`; "" when no window is usable.
+    ``now`` (unix seconds) and ``state_path`` are injectable for tests; with no
+    ``state_path`` nothing is read or written and the baseline is the live usage.
     """
     if not isinstance(rate_limits, dict):
         return ""
@@ -451,7 +592,7 @@ def render_rate_limits(rate_limits, now: Optional[float] = None) -> str:
         _rate_window(rate_limits.get("five_hour"), "5h", now,
                      RELEASE_SOON_5H, RELEASE_NEAR_5H),
         _rate_window(rate_limits.get("seven_day"), "7d", now,
-                     RELEASE_SOON_7D, RELEASE_NEAR_7D),
+                     RELEASE_SOON_7D, RELEASE_NEAR_7D, state_path, daily=True),
     ]
     return (DIM + SEPARATOR + RESET).join(p for p in parts if p)
 
@@ -500,7 +641,7 @@ def main() -> None:
     limit = resolve_limit(context_window, model_id)
     used = resolve_used(context_window, transcript, limit)
     pct = min(100, round(used * 100 / limit)) if limit else 0
-    extra = render_rate_limits(data.get("rate_limits"))
+    extra = render_rate_limits(data.get("rate_limits"), state_path=default_state_path())
 
     sys.stdout.write(render(pct, used, limit, model_name, extra, model_id,
                        effort_level(data.get("effort"))))

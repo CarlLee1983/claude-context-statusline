@@ -491,7 +491,7 @@ class RateLimitTest(_TruecolorMixin, unittest.TestCase):
             "five_hour": {"used_percentage": 11, "resets_at": self.NOW + 9660},
             "seven_day": {"used_percentage": 14, "resets_at": self.NOW + 3 * 86400 + 4 * 3600},
         })
-        self.assertEqual(_plain(out), "5h 11% 2h41m \u2502 7d 14% 3d4h")
+        self.assertRegex(_plain(out), r"^5h 11% 2h41m \u2502 7d 14% 3d4h \u2192\d+%$")
         self.assertIn(ctx.DIM + "5h", out)
         self.assertIn(ctx.fg(ctx.OK_RGB) + "11%", out)
         self.assertIn(ctx.DIM + "2h41m", out)
@@ -637,7 +637,154 @@ class CountdownColorTest(_TruecolorMixin, unittest.TestCase):
         self.assertIn("\033[38;5;109m", out)
 
 
-class MainTest(_TruecolorMixin, unittest.TestCase):
+class _IsolatedStateMixin(_TruecolorMixin):
+    """TZ 固定 UTC、XDG_CACHE_HOME 指向暫存目錄，絕不碰真實的家目錄。
+
+    Pin TZ=UTC and point XDG_CACHE_HOME at a temp dir so the real home is
+    never touched.
+    """
+
+    def setUp(self):
+        self.addCleanup(ctx.time.tzset)  # 最先登記 = 最後執行，晚於環境還原 / runs last, after env restore
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cache_dir = tmp.name
+        os.environ["XDG_CACHE_HOME"] = tmp.name
+        os.environ["TZ"] = "UTC"
+        ctx.time.tzset()
+
+
+class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
+    NOW = 1_000_000_000.0  # UTC 2001-09-09 01:46:40
+    MIDNIGHT = NOW - (NOW % 86400)
+
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.cache_dir, "sub", "weekly-target.json")
+
+    def target(self, pct, days_from_midnight, path="default", now=None):
+        path = self.path if path == "default" else path
+        now = self.NOW if now is None else now
+        return ctx.daily_target(pct, self.MIDNIGHT + days_from_midnight * 86400, now, path)
+
+    def state(self):
+        with open(self.path, encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_formula_example(self):
+        self.assertEqual(self.target(60, 3), 73)
+
+    def test_last_day_is_100(self):
+        self.assertEqual(self.target(60, 1), 100)
+        self.assertEqual(self.target(60, 0.5), 100)  # d 夾在 >= 1
+
+    def test_no_state_path_uses_live_pct(self):
+        self.assertEqual(self.target(60, 3, path=None), 73)
+        self.assertFalse(os.path.exists(self.path))
+
+    def test_first_render_writes_state(self):
+        self.target(60, 3)
+        self.assertEqual(self.state(), {
+            "window": round((self.MIDNIGHT + 3 * 86400) / 3600) * 3600,
+            "date": "2001-09-09", "baseline": 60})
+
+    def test_baseline_anchors_target_within_the_day(self):
+        self.target(60, 3)
+        self.assertEqual(self.target(73, 3), 73)  # 不隨用量後退 / does not recede
+
+    def test_state_not_rewritten_when_valid(self):
+        self.target(60, 3)
+        with mock.patch.object(ctx.os, "replace") as replace:
+            self.target(65, 3)
+        replace.assert_not_called()
+
+    def test_new_day_rebaselines(self):
+        self.target(60, 3)
+        self.assertEqual(self.target(70, 3, now=self.NOW + 86400), 85)  # d = 2
+        self.assertEqual(self.state()["baseline"], 70)
+        self.assertEqual(self.state()["date"], "2001-09-10")
+
+    def test_new_window_rebaselines(self):
+        self.target(60, 3)
+        self.target(10, 3 + 7)
+        self.assertEqual(self.state()["baseline"], 10)
+
+    def test_usage_below_baseline_rebaselines(self):
+        self.target(60, 3)
+        self.assertEqual(self.target(20, 3), round(20 + 80 / 3))
+        self.assertEqual(self.state()["baseline"], 20)
+
+    def test_corrupt_or_invalid_state_falls_back_and_rewrites(self):
+        os.makedirs(os.path.dirname(self.path))
+        window = round((self.MIDNIGHT + 3 * 86400) / 3600) * 3600
+        bad = [
+            "not json", "[]", "{}",
+            json.dumps({"window": window, "date": "2001-09-09", "baseline": True}),
+            json.dumps({"window": window, "date": "2001-09-09", "baseline": 101}),
+            json.dumps({"window": window, "date": "2001-09-09", "baseline": -1}),
+            json.dumps({"window": window, "date": "2001-09-09", "baseline": 5.5}),
+            json.dumps({"window": True, "date": "2001-09-09", "baseline": 5}),
+            json.dumps({"window": str(window), "date": "2001-09-09", "baseline": 5}),
+            json.dumps({"window": window, "date": 20010909, "baseline": 5}),
+        ]
+        for text in bad:
+            with open(self.path, "w", encoding="utf-8") as f:
+                f.write(text)
+            self.assertEqual(self.target(60, 3), 73, text)
+            self.assertEqual(self.state()["baseline"], 60, text)
+
+    def test_unwritable_path_falls_back_silently(self):
+        blocker = os.path.join(self.cache_dir, "file")
+        with open(blocker, "w") as f:
+            f.write("x")
+        self.assertEqual(self.target(60, 3, path=os.path.join(blocker, "x", "s.json")), 73)
+
+    def test_no_temp_file_left_behind(self):
+        self.target(60, 3)
+        self.assertEqual(os.listdir(os.path.dirname(self.path)), ["weekly-target.json"])
+
+    def test_huge_values_do_not_raise(self):
+        self.assertIsNone(ctx.daily_target(60, 10 ** 400, self.NOW, self.path))
+
+    def test_default_state_path_follows_xdg(self):
+        self.assertEqual(ctx.default_state_path(),
+                         os.path.join(self.cache_dir, "ctx-statusline", "weekly-target.json"))
+        del os.environ["XDG_CACHE_HOME"]
+        self.assertEqual(
+            ctx.default_state_path(),
+            os.path.join(os.path.expanduser("~"), ".cache", "ctx-statusline", "weekly-target.json"))
+
+    def render(self, five=None, seven=None):
+        rl = {}
+        if five:
+            rl["five_hour"] = five
+        if seven:
+            rl["seven_day"] = seven
+        return ctx.render_rate_limits(rl, self.NOW, self.path)
+
+    def test_render_appends_target_to_seven_day_only(self):
+        out = self.render(
+            {"used_percentage": 60, "resets_at": self.MIDNIGHT + 3 * 86400},
+            {"used_percentage": 60, "resets_at": self.MIDNIGHT + 3 * 86400})
+        self.assertEqual(_plain(out).count("\u2192"), 1)
+        self.assertTrue(_plain(out).endswith("7d 60% 2d22h \u219273%"))
+
+    def test_render_target_dim_when_under_and_warn_when_reached(self):
+        reset = self.MIDNIGHT + 3 * 86400
+        under = self.render(seven={"used_percentage": 60, "resets_at": reset})
+        self.assertIn(ctx.DIM + "\u219273%", under)
+        over = self.render(seven={"used_percentage": 73, "resets_at": reset})
+        self.assertIn(ctx.fg(ctx.WARN_RGB) + "\u219273%", over)
+
+    def test_render_no_target_without_valid_countdown(self):
+        self.assertNotIn("\u2192", self.render(seven={"used_percentage": 60}))
+        self.assertNotIn("\u2192", self.render(
+            seven={"used_percentage": 60, "resets_at": self.NOW - 5}))
+
+
+class MainTest(_IsolatedStateMixin, unittest.TestCase):
+    EXPECTED_TARGET = 37  # UTC：基準 14、距重置 3.75 天 / baseline 14, 3.75 days left
     def _run_main(self, stdin_text):
         buf = io.StringIO()
         old_stdin = ctx.sys.stdin
@@ -688,7 +835,7 @@ class MainTest(_TruecolorMixin, unittest.TestCase):
         self.assertEqual(
             _plain(out),
             " Opus 5.5  ██\u258a" + "\u2500" * 9
-            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h",
+            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h \u2192{}%".format(self.EXPECTED_TARGET),
         )
         self.assertIn(ctx.bg(ctx.OPUS_RGB), out)
 
@@ -711,7 +858,7 @@ class MainTest(_TruecolorMixin, unittest.TestCase):
         self.assertEqual(
             _plain(out),
             " Opus 5.5 \u00b7 medium  ██\u258a" + "\u2500" * 9
-            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h",
+            + " 23% 229k/1m \u2502 5h 11% 2h41m \u2502 7d 14% 3d11h \u2192{}%".format(self.EXPECTED_TARGET),
         )
         self.assertIn(ctx.UNBOLD, out)
 
