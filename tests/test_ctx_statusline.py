@@ -822,12 +822,18 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
         self.assertEqual(_plain(out).count("\u2192"), 1)
         self.assertTrue(_plain(out).endswith("7d 60% 2d22h \u219273%"))
 
-    def test_render_target_dim_when_under_and_warn_when_reached(self):
+    def test_render_target_tinted_when_under_and_bold_warn_when_reached(self):
         reset = self.MIDNIGHT + 3 * 86400
         under = self.render(seven={"used_percentage": 60, "resets_at": reset})
-        self.assertIn(ctx.DIM + "\u219273%", under)
+        self.assertIn(ctx.fg(ctx.TARGET_RGB) + "\u219273%", under)
+        self.assertNotIn(ctx.DIM + "\u2192", under)
         over = self.render(seven={"used_percentage": 73, "resets_at": reset})
-        self.assertIn(ctx.fg(ctx.WARN_RGB) + "\u219273%", over)
+        self.assertIn(ctx.fg(ctx.WARN_RGB) + ctx.BOLD + "\u219273%", over)
+
+    def test_target_color_256_fallback_is_distinct(self):
+        self.assertEqual(ctx.nearest_256(ctx.TARGET_RGB), 111)
+        others = (ctx.OK_RGB, ctx.WARN_RGB, ctx.CRIT_RGB, ctx.CYAN_BRIGHT_RGB, ctx.CYAN_SOFT_RGB)
+        self.assertNotIn(111, [ctx.nearest_256(c) for c in others])
 
     def test_render_no_target_without_valid_countdown(self):
         self.assertNotIn("\u2192", self.render(seven={"used_percentage": 60}))
