@@ -9,6 +9,11 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Changed 變更
+- **7d 視窗的 `→73%` 更好辨識**：未達目標時由暗色改為淡藍紫（256 色退化為 111），已達目標改為粗體黃。
+  **The 7d `→73%` target is easier to spot**: periwinkle instead of dim while under target (xterm-256 fallback 111),
+  bold yellow once reached.
+
 ## [0.6.0] - 2026-10-28
 
 ### Added 新增

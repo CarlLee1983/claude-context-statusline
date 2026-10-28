@@ -47,6 +47,7 @@ SONNET_RGB = (98, 160, 234)
 HAIKU_RGB = (94, 196, 160)
 CYAN_BRIGHT_RGB = (80, 220, 230)  # 額度即將釋放（倒數強調）/ quota about to free up
 CYAN_SOFT_RGB = (120, 170, 180)   # 額度接近釋放 / quota nearly freed
+TARGET_RGB = (150, 170, 255)      # 今日目標上限（未達）/ today's target, not yet reached
 NEUTRAL_RGB = (150, 150, 160)  # 未知模型家族 / unknown model family
 MODEL_FAMILIES = (
     ("fable", FABLE_RGB),
@@ -571,14 +572,15 @@ def daily_target(pct: int, resets_at, now: float, state_path: Optional[str]) -> 
 
 
 def _target_text(pct: int, resets_at, now: float, state_path: Optional[str]) -> str:
-    """` →73%`：用量未達目標為暗色，已達（今日額度用完）改警示黃。
+    """` →73%`：用量未達目標為淡藍紫，已達（今日額度用完）改粗體警示黃。
 
-    ` →73%`: dim while under target, warn color once today's budget is spent.
+    ` →73%`: periwinkle while under target, bold warn color once today's
+    budget is spent.
     """
     target = daily_target(pct, resets_at, now, state_path)
     if target is None:
         return ""
-    style = fg(WARN_RGB) if pct >= target else DIM
+    style = fg(WARN_RGB) + BOLD if pct >= target else fg(TARGET_RGB)
     return " {}\u2192{}%{}".format(style, target, RESET)
 
 
