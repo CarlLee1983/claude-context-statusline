@@ -75,6 +75,9 @@ MAX_MODEL_CHARS = 40
 MAX_COUNTDOWN_SECONDS = 366 * 86400  # 超過視為無效 / beyond this is treated as invalid
 STATE_DIR = "ctx-statusline"  # 每日目標狀態檔 / daily-target state file location
 STATE_FILE = "weekly-target.json"
+STATE_MAX_BYTES = 4096   # 狀態檔最多讀這麼多 / read at most this much of the file
+STATE_MAX_RECORDS = 3    # 最多保留的視窗數（多帳號）/ windows kept (multiple accounts)
+WINDOW_TOLERANCE = 1800  # 重置時間差小於此秒數視為同一視窗 / same window if resets differ less
 WARN_PCT = 70   # >= 此值轉黃 / turn yellow at/above this
 CRIT_PCT = 85   # >= 此值轉紅 / turn red at/above this
 
@@ -459,28 +462,38 @@ def _is_pct_int(v) -> bool:
     return isinstance(v, int) and not isinstance(v, bool) and 0 <= v <= 100
 
 
-def _read_baseline(path: str, window: int, date: str) -> Optional[int]:
-    """讀今天此視窗的基準百分比；檔案缺漏、損毀或不符回傳 None（檔案內容不可信）。
+def _valid_record(rec) -> bool:
+    """狀態紀錄是否合法：window 為有限數字（非 bool）、date 為字串、baseline 為 0–100 的 int。
 
-    Read today's baseline for this window; None when the file is missing,
-    corrupt or for another window/day (its content is untrusted).
+    Whether a state record is valid: finite numeric window (not bool), string
+    date, int baseline in 0..100.
+    """
+    return (
+        isinstance(rec, dict)
+        and _is_number(rec.get("window"))
+        and isinstance(rec.get("date"), str)
+        and _is_pct_int(rec.get("baseline"))
+    )
+
+
+def _read_records(path: str) -> list:
+    """讀出狀態檔中合法的紀錄；缺漏、損毀、過大或過深回傳空串列（檔案內容不可信）。
+
+    Read the valid records from the state file; [] when it is missing, corrupt,
+    oversized or too deeply nested (its content is untrusted).
     """
     try:
         with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except (OSError, ValueError):
-        return None
-    if not isinstance(data, dict):
-        return None
-    stored_window = data.get("window")
-    if (not isinstance(stored_window, int) or isinstance(stored_window, bool)
-            or stored_window != window or data.get("date") != date):
-        return None
-    baseline = data.get("baseline")
-    return baseline if _is_pct_int(baseline) else None
+            data = json.loads(f.read(STATE_MAX_BYTES))
+    except (OSError, ValueError, RecursionError):
+        return []
+    records = data.get("records") if isinstance(data, dict) else None
+    if not isinstance(records, list):
+        return []
+    return [r for r in records if _valid_record(r)][:STATE_MAX_RECORDS]
 
 
-def _write_baseline(path: str, window: int, date: str, baseline: int) -> None:
+def _write_records(path: str, records: list) -> None:
     """原子寫入狀態檔（同目錄暫存檔 + os.replace）；失敗時靜默放棄。
 
     Atomically write the state file (temp file in the same dir + os.replace);
@@ -491,8 +504,13 @@ def _write_baseline(path: str, window: int, date: str, baseline: int) -> None:
         directory = os.path.dirname(path)
         os.makedirs(directory, exist_ok=True)
         fd, tmp = tempfile.mkstemp(dir=directory, prefix=".weekly-target-")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump({"window": window, "date": date, "baseline": baseline}, f)
+        try:
+            f = os.fdopen(fd, "w", encoding="utf-8")
+        except OSError:
+            os.close(fd)
+            raise
+        with f:
+            json.dump({"records": records}, f)
         os.replace(tmp, path)
         tmp = None
     except (OSError, ValueError, TypeError):
@@ -509,18 +527,29 @@ def _weekly_baseline(pct: int, resets_at, now: float, state_path: Optional[str])
     """今天第一次看到的 7d 用量；僅在換日、換視窗或用量倒退時重寫狀態檔。
 
     The 7d usage first seen today; the state file is rewritten only on a new
-    day, a new window, or when usage went backwards. Falls back to ``pct``.
+    day, a new window, or when usage went backwards. Windows are matched by
+    reset time within WINDOW_TOLERANCE (the reset time jitters), and up to
+    STATE_MAX_RECORDS windows are kept (several accounts). Falls back to ``pct``.
     """
     if state_path is None:
         return pct
     date = _local_date(now)
     if date is None:
         return pct
-    window = int(round(resets_at / 3600.0)) * 3600
-    stored = _read_baseline(state_path, window, date)
-    if stored is not None and stored <= pct:
-        return stored
-    _write_baseline(state_path, window, date, pct)
+    records = _read_records(state_path)
+    index = next((i for i, r in enumerate(records)
+                  if abs(r["window"] - resets_at) < WINDOW_TOLERANCE), None)
+    if index is not None:
+        found = records[index]
+        if found["date"] == date and found["baseline"] <= pct:
+            return found["baseline"]
+    fresh = {"window": resets_at, "date": date, "baseline": pct}
+    kept = [r for r in records if r["window"] > now]  # 已過期的視窗不留 / drop past windows
+    if index is not None and records[index]["window"] > now:
+        kept[kept.index(records[index])] = fresh
+    else:
+        kept.append(fresh)
+    _write_records(state_path, kept[-STATE_MAX_RECORDS:])
     return pct
 
 
@@ -536,7 +565,7 @@ def daily_target(pct: int, resets_at, now: float, state_path: Optional[str]) -> 
     try:
         days = max(1.0, (resets_at - midnight) / 86400.0)
         baseline = _weekly_baseline(pct, resets_at, now, state_path)
-        return min(100, round(baseline + (100 - baseline) / days))
+        return min(100, int(baseline + (100 - baseline) / days + 0.5))
     except (OverflowError, ValueError):
         return None
 

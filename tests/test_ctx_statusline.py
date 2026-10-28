@@ -6,6 +6,7 @@ Unit tests for ctx-statusline.py (pure-stdlib unittest, no third-party deps).
 執行 / Run:  python3 -m unittest discover -s tests
 """
 import importlib.util
+import calendar
 import io
 import json
 import os
@@ -668,9 +669,12 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
         now = self.NOW if now is None else now
         return ctx.daily_target(pct, self.MIDNIGHT + days_from_midnight * 86400, now, path)
 
-    def state(self):
+    def records(self):
         with open(self.path, encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f)["records"]
+
+    def state(self):
+        return self.records()[0]
 
     def test_formula_example(self):
         self.assertEqual(self.target(60, 3), 73)
@@ -685,9 +689,9 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
 
     def test_first_render_writes_state(self):
         self.target(60, 3)
-        self.assertEqual(self.state(), {
-            "window": round((self.MIDNIGHT + 3 * 86400) / 3600) * 3600,
-            "date": "2001-09-09", "baseline": 60})
+        self.assertEqual(self.records(), [{
+            "window": self.MIDNIGHT + 3 * 86400,
+            "date": "2001-09-09", "baseline": 60}])
 
     def test_baseline_anchors_target_within_the_day(self):
         self.target(60, 3)
@@ -708,31 +712,33 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
     def test_new_window_rebaselines(self):
         self.target(60, 3)
         self.target(10, 3 + 7)
-        self.assertEqual(self.state()["baseline"], 10)
+        self.assertEqual([r["baseline"] for r in self.records()], [60, 10])
 
     def test_usage_below_baseline_rebaselines(self):
         self.target(60, 3)
-        self.assertEqual(self.target(20, 3), round(20 + 80 / 3))
+        self.assertEqual(self.target(20, 3), int(20 + 80 / 3 + 0.5))
         self.assertEqual(self.state()["baseline"], 20)
 
     def test_corrupt_or_invalid_state_falls_back_and_rewrites(self):
         os.makedirs(os.path.dirname(self.path))
-        window = round((self.MIDNIGHT + 3 * 86400) / 3600) * 3600
+        window = self.MIDNIGHT + 3 * 86400
+
+        def rec(**kw):
+            r = {"window": window, "date": "2001-09-09", "baseline": 5}
+            r.update(kw)
+            return json.dumps({"records": [r]})
+
         bad = [
-            "not json", "[]", "{}",
-            json.dumps({"window": window, "date": "2001-09-09", "baseline": True}),
-            json.dumps({"window": window, "date": "2001-09-09", "baseline": 101}),
-            json.dumps({"window": window, "date": "2001-09-09", "baseline": -1}),
-            json.dumps({"window": window, "date": "2001-09-09", "baseline": 5.5}),
-            json.dumps({"window": True, "date": "2001-09-09", "baseline": 5}),
-            json.dumps({"window": str(window), "date": "2001-09-09", "baseline": 5}),
-            json.dumps({"window": window, "date": 20010909, "baseline": 5}),
+            "not json", "[]", "{}", '{"records": 5}', '{"records": [5]}',
+            "[" * 200000,  # 過深巢狀 / deeply nested
+            rec(baseline=True), rec(baseline=101), rec(baseline=-1), rec(baseline=5.5),
+            rec(window=True), rec(window="x"), rec(window=float("inf")), rec(date=20010909),
         ]
         for text in bad:
             with open(self.path, "w", encoding="utf-8") as f:
                 f.write(text)
             self.assertEqual(self.target(60, 3), 73, text)
-            self.assertEqual(self.state()["baseline"], 60, text)
+            self.assertEqual(self.records(), [{"window": window, "date": "2001-09-09", "baseline": 60}], text)
 
     def test_unwritable_path_falls_back_silently(self):
         blocker = os.path.join(self.cache_dir, "file")
@@ -743,6 +749,52 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
     def test_no_temp_file_left_behind(self):
         self.target(60, 3)
         self.assertEqual(os.listdir(os.path.dirname(self.path)), ["weekly-target.json"])
+
+    def test_target_rounds_half_up(self):
+        self.assertEqual(self.target(50, 4), 63)  # 62.5 -> 63，非銀行家進位 / not banker's
+
+    def test_jittering_reset_time_keeps_baseline(self):
+        reset = self.MIDNIGHT + 3 * 86400 + 1800
+        ctx.daily_target(60, reset - 1, self.NOW, self.path)
+        with mock.patch.object(ctx.os, "replace") as replace:
+            for i, pct in enumerate((65, 66, 67, 68)):
+                got = ctx.daily_target(pct, reset + (1 if i % 2 else -1), self.NOW, self.path)
+                self.assertEqual(got, int(60 + 40 / ((reset - self.MIDNIGHT) / 86400) + 0.5))
+        replace.assert_not_called()
+        self.assertEqual(self.state()["baseline"], 60)
+
+    def test_two_accounts_keep_their_own_baselines(self):
+        a, b = self.MIDNIGHT + 3 * 86400, self.MIDNIGHT + 5 * 86400
+        ctx.daily_target(60, a, self.NOW, self.path)
+        ctx.daily_target(20, b, self.NOW, self.path)
+        with mock.patch.object(ctx.os, "replace") as replace:
+            for _ in range(2):
+                self.assertEqual(ctx.daily_target(70, a, self.NOW, self.path), 73)
+                self.assertEqual(ctx.daily_target(30, b, self.NOW, self.path), 36)
+        replace.assert_not_called()
+        self.assertEqual(sorted(r["baseline"] for r in self.records()), [20, 60])
+
+    def test_keeps_at_most_three_and_drops_past_windows(self):
+        for days in (3, 4, 5, 6):
+            ctx.daily_target(10, self.MIDNIGHT + days * 86400, self.NOW, self.path)
+        self.assertEqual([r["window"] for r in self.records()],
+                         [self.MIDNIGHT + d * 86400 for d in (4, 5, 6)])
+        later = self.NOW + 4.5 * 86400  # 4 天後的視窗已過去 / the day-4 window is past
+        ctx.daily_target(10, self.MIDNIGHT + 8 * 86400, later, self.path)
+        self.assertEqual([r["window"] for r in self.records()],
+                         [self.MIDNIGHT + d * 86400 for d in (5, 6, 8)])
+
+    def test_replace_failure_leaves_no_temp_file(self):
+        with mock.patch.object(ctx.os, "replace", side_effect=OSError("boom")):
+            self.assertEqual(self.target(60, 3), 73)
+        self.assertEqual(os.listdir(os.path.dirname(self.path)), [])
+
+    def test_fdopen_failure_closes_fd(self):
+        with mock.patch.object(ctx.os, "fdopen", side_effect=OSError("boom")), \
+                mock.patch.object(ctx.os, "close", wraps=os.close) as close:
+            self.assertEqual(self.target(60, 3), 73)
+        close.assert_called_once()
+        self.assertEqual(os.listdir(os.path.dirname(self.path)), [])
 
     def test_huge_values_do_not_raise(self):
         self.assertIsNone(ctx.daily_target(60, 10 ** 400, self.NOW, self.path))
@@ -781,6 +833,40 @@ class DailyTargetTest(_IsolatedStateMixin, unittest.TestCase):
         self.assertNotIn("\u2192", self.render(seven={"used_percentage": 60}))
         self.assertNotIn("\u2192", self.render(
             seven={"used_percentage": 60, "resets_at": self.NOW - 5}))
+
+
+class LocalTimezoneTest(_IsolatedStateMixin, unittest.TestCase):
+    """當地午夜依 TZ 計算，不是 UTC。 Local midnight follows TZ, not UTC."""
+
+    def setUp(self):
+        super().setUp()
+        self.path = os.path.join(self.cache_dir, "weekly-target.json")
+
+    def use_tz(self, name):
+        os.environ["TZ"] = name
+        ctx.time.tzset()
+
+    def test_taipei_day_changes_at_utc_1600(self):
+        self.use_tz("Asia/Taipei")
+        before = calendar.timegm((2001, 9, 9, 15, 59, 0))  # 台北 23:59 / 23:59 local
+        after = calendar.timegm((2001, 9, 9, 16, 1, 0))    # 台北隔天 00:01 / next day 00:01
+        reset = calendar.timegm((2001, 9, 12, 16, 0, 0))   # 台北 9/13 00:00
+        self.assertEqual(ctx.daily_target(60, reset, before, None), 70)  # d = 4
+        self.assertEqual(ctx.daily_target(60, reset, after, None), 73)   # d = 3
+        ctx.daily_target(60, reset, before, self.path)
+        ctx.daily_target(60, reset, after, self.path)
+        with open(self.path, encoding="utf-8") as f:
+            self.assertEqual([r["date"] for r in json.load(f)["records"]], ["2001-09-10"])
+
+    def test_new_york_dst_end_day_is_25_hours(self):
+        self.use_tz("America/New_York")
+        now = calendar.timegm((2001, 10, 28, 17, 0, 0))    # 夏令結束日 12:00 EST
+        midnight = calendar.timegm((2001, 10, 28, 4, 0, 0))  # 00:00 EDT
+        reset = calendar.timegm((2001, 10, 31, 5, 0, 0))     # 10/31 00:00 EST
+        d = (reset - midnight) / 86400
+        self.assertAlmostEqual(d, 3 + 1 / 24)
+        self.assertEqual(ctx.daily_target(50, reset, now, None), int(50 + 50 / d + 0.5))
+        self.assertEqual(ctx.daily_target(50, reset, now, None), 66)
 
 
 class MainTest(_IsolatedStateMixin, unittest.TestCase):
