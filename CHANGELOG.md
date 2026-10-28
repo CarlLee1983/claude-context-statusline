@@ -9,6 +9,14 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+### Changed 變更
+- **7d 的 `→N%` 改為無狀態的步調目標**：目標 = 100 − 100/7 × 距重置剩餘的整天數（四捨五入、夾在 0–100），
+  剩不到 1 天為 100%（剩 1d18h → 86%、2d0h → 71%、6d23h → 14%）。移除「今日基準」狀態檔
+  `weekly-target.json` 及其所有讀寫邏輯，不再依當地午夜與基準計算。
+  **The 7d `→N%` is now a stateless pace target**: target = 100 − 100/7 × full days left until reset (rounded half up,
+  clamped to 0–100), 100% with under a day left (1d18h → 86%, 2d0h → 71%, 6d23h → 14%). The "today's baseline" state
+  file `weekly-target.json` and all its read/write logic are removed; nothing depends on local midnight or a baseline anymore.
+
 ## [0.6.1] - 2026-10-28
 
 ### Changed 變更
