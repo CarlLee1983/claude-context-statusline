@@ -38,15 +38,31 @@ else
   echo "    $SHA"
 fi
 
+# 試跑時渲染到暫存目錄並只顯示 diff，不動 tap 的工作目錄。
+# A dry run renders into a temp dir and only shows the diff, leaving the tap untouched.
+if [ "$DRY_RUN" = "1" ]; then
+  OUT_DIR="$(mktemp -d)"
+  trap 'rm -rf "$OUT_DIR"' EXIT
+else
+  OUT_DIR="$TAP_DIR/Formula"
+fi
+
 for f in ctx-statusline ai-usage-monitor; do
   sed -e "s|archive/refs/tags/v[0-9][0-9.]*\\.tar\\.gz|archive/refs/tags/v$VERSION.tar.gz|" \
       -e "s|sha256 \"[a-f0-9]*\"|sha256 \"$SHA\"|" \
-      "$SRC_DIR/$f.rb" > "$TAP_DIR/Formula/$f.rb"
-  echo "    rendered $TAP_DIR/Formula/$f.rb"
+      "$SRC_DIR/$f.rb" > "$OUT_DIR/$f.rb"
+  echo "    rendered $OUT_DIR/$f.rb"
+  if [ "$DRY_RUN" = "1" ]; then
+    diff -u "$TAP_DIR/Formula/$f.rb" "$OUT_DIR/$f.rb" || true
+  fi
 done
 
 echo "==> commit & push tap"
 run git -C "$TAP_DIR" add Formula
 run git -C "$TAP_DIR" commit -m "release: v$VERSION"
 run git -C "$TAP_DIR" push
-echo "✅ released v$VERSION"
+if [ "$DRY_RUN" = "1" ]; then
+  echo "✅ dry run of v$VERSION done (tap untouched)"
+else
+  echo "✅ released v$VERSION"
+fi
