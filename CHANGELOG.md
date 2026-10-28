@@ -12,10 +12,12 @@ All notable changes are documented here, following
 ### Changed 變更
 - **7d 的 `→N%` 改為無狀態的步調目標**：目標 = 100 − 100/7 × 距重置剩餘的整天數（四捨五入、夾在 0–100），
   剩不到 1 天為 100%（剩 1d18h → 86%、2d0h → 71%、6d23h → 14%）。移除「今日基準」狀態檔
-  `weekly-target.json` 及其所有讀寫邏輯，不再依當地午夜與基準計算。
+  `weekly-target.json` 及其所有讀寫邏輯，不再依當地午夜與基準計算。0.6.x 留下的 `$XDG_CACHE_HOME/ctx-statusline/weekly-target.json`（或 `~/.cache/…`）不再使用，可手動刪除。
+  整天數最多算 6（重置抖動超過 7 天時目標仍為 14%，不會變 0%）。
   **The 7d `→N%` is now a stateless pace target**: target = 100 − 100/7 × full days left until reset (rounded half up,
   clamped to 0–100), 100% with under a day left (1d18h → 86%, 2d0h → 71%, 6d23h → 14%). The "today's baseline" state
-  file `weekly-target.json` and all its read/write logic are removed; nothing depends on local midnight or a baseline anymore.
+  file `weekly-target.json` and all its read/write logic are removed; nothing depends on local midnight or a baseline anymore. The `$XDG_CACHE_HOME/ctx-statusline/weekly-target.json` (or `~/.cache/…`)
+  left by 0.6.x is no longer used and can be deleted manually. Full days are capped at 6 (reset jitter past 7 days still gives 14%, never 0%).
 
 ## [0.6.1] - 2026-10-28
 

@@ -423,16 +423,17 @@ def weekly_target(remaining: float) -> int:
     """今天結束前的 7d 用量目標（%）：每多一整天，目標少 100/7。
 
     The 7d usage target (%) for today: 100/7 lower for every full day left
-    after today. Rounded half up and clamped to 0..100; under a day left → 100.
+    after today, capped at 6 full days (so never below 14). Rounded half up;
+    under a day left → 100.
     """
-    full_days = int(remaining // 86400)
+    full_days = min(6, int(remaining // 86400))  # 重置抖動可能 >= 7 天 / jitter can exceed 7d
     return max(0, min(100, int(100 - 100 / 7 * full_days + 0.5)))
 
 
 def _target_text(pct: int, remaining: float) -> str:
-    """` →73%`：用量未達目標為淡藍紫，已達（今日額度用完）改粗體警示黃。
+    """` →86%`：用量未達目標為淡藍紫，已達（今日額度用完）改粗體警示黃。
 
-    ` →73%`: periwinkle while under target, bold warn color once today's
+    ` →86%`: periwinkle while under target, bold warn color once today's
     budget is spent.
     """
     target = weekly_target(remaining)
@@ -464,9 +465,9 @@ def _rate_window(window, label: str, now: float, soon: int, near: int,
 
 
 def render_rate_limits(rate_limits, now: Optional[float] = None) -> str:
-    """組出 `5h 11% 2h41m │ 7d 14% 3d4h →17%`；沒有任何視窗時回傳空字串。
+    """組出 `5h 11% 2h41m │ 7d 14% 3d4h →57%`；沒有任何視窗時回傳空字串。
 
-    Build `5h 11% 2h41m │ 7d 14% 3d4h →17%`; "" when no window is usable.
+    Build `5h 11% 2h41m │ 7d 14% 3d4h →57%`; "" when no window is usable.
     ``now`` (unix seconds) is injectable for tests.
     """
     if not isinstance(rate_limits, dict):

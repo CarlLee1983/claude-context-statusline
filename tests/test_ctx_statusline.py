@@ -654,10 +654,18 @@ class WeeklyTargetTest(_TruecolorMixin, unittest.TestCase):
         ):
             self.assertEqual(self.target(remaining), expected, remaining)
 
-    def test_rounds_half_up_and_clamps(self):
-        self.assertEqual(self.target(30 * self.D), 0)       # 夾到 0 / clamped to 0
+    def test_full_day_boundaries_and_clamp(self):
+        D = self.D
+        by_full_days = {0: 100, 1: 86, 2: 71, 3: 57, 4: 43, 5: 29, 6: 14, 7: 14}
+        for days, expected in by_full_days.items():  # 7 天以上封頂 / capped at 6 full days
+            self.assertEqual(self.target(days * D), expected, days)
+            self.assertEqual(self.target(days * D + 5), expected, days)
+        self.assertEqual(self.target(D - 1e-6), 100)
+        self.assertEqual(self.target(D), 86)
+        self.assertEqual(self.target(2 * D - 1e-6), 86)
+        self.assertEqual(self.target(2 * D), 71)
+        self.assertEqual(self.target(30 * D), 14)
         self.assertEqual(self.target(0.5), 100)
-        self.assertEqual(ctx.weekly_target(3.5 * self.D), 57)  # 3 整天 → 57.14
 
     def rl(self, used, remaining):
         return ctx.render_rate_limits(
@@ -688,10 +696,15 @@ class WeeklyTargetTest(_TruecolorMixin, unittest.TestCase):
         self.assertNotIn("\u2192", ctx.render_rate_limits(
             {"seven_day": {"used_percentage": 60}}, self.NOW))
 
-    def test_signature_has_no_state_path(self):
-        self.assertFalse(hasattr(ctx, "default_state_path"))
-        with self.assertRaises(TypeError):
-            ctx.render_rate_limits({}, self.NOW, "/tmp/x")
+    def test_render_does_no_file_io(self):
+        with mock.patch("builtins.open", side_effect=AssertionError("file I/O")):
+            out = self.rl(70, 1.75 * self.D)
+        self.assertTrue(_plain(out).endswith("7d 70% 1d18h \u219286%"))
+
+    def test_full_week_remaining_is_not_zero_target(self):
+        out = self.rl(0, 7 * self.D + 5)
+        self.assertIn("\u219214%", _plain(out))
+        self.assertNotIn(ctx.BOLD, out)
 
 
 class MainTest(_TruecolorMixin, unittest.TestCase):
