@@ -9,6 +9,8 @@ All notable changes are documented here, following
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-29
+
 ### Changed 變更
 - **7d 的 `→N%` 改為無狀態的步調目標**：目標 = 100 − 100/7 × 距重置剩餘的整天數（四捨五入、夾在 0–100），
   剩不到 1 天為 100%（剩 1d18h → 86%、2d0h → 71%、6d23h → 14%）。移除「今日基準」狀態檔
